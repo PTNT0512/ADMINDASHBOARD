@@ -1,0 +1,291 @@
+/* Reset & Global Variables */
+:root {
+  --primary-green: #4caf50;       /* Xanh lá chủ đạo */
+  --dark-green: #2e7d32;          /* Xanh đậm cho hover/text */
+  --light-green: #e8f5e9;         /* Xanh nhạt cho nền */
+  --accent-green: #66bb6a;        /* Xanh tươi sáng */
+  --bg-color: #f4f7f6;            /* Màu nền tổng thể xám xanh rất nhạt */
+  --text-color: #333;
+  --white: #ffffff;
+  --shadow-soft: 0 8px 24px rgba(149, 157, 165, 0.1); /* Bóng đổ mềm */
+  --radius: 12px;                 /* Bo góc mềm mại */
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+}
+
+body {
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+/* --- Login Styles --- */
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  /* Gradient xanh lá mềm mại */
+  background: linear-gradient(135deg, #a8e063 0%, #56ab2f 100%);
+}
+
+.login-box {
+  background: var(--white);
+  padding: 40px 50px;
+  border-radius: 20px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  transition: transform 0.3s ease;
+}
+
+.login-box:hover {
+  transform: translateY(-5px);
+}
+
+.login-box h2 {
+  color: var(--dark-green);
+  margin-bottom: 30px;
+  font-weight: 700;
+  font-size: 24px;
+}
+
+.input-group {
+  margin-bottom: 20px;
+  text-align: left;
+}
+
+.input-group label {
+  display: block;
+  margin-bottom: 8px;
+  color: #555;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #eee;
+  border-radius: 10px;
+  font-size: 15px;
+  transition: all 0.3s ease;
+  outline: none;
+  background-color: #fafafa;
+}
+
+.input-group input:focus {
+  border-color: var(--accent-green);
+  background-color: var(--white);
+  box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
+}
+
+button {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(to right, var(--primary-green), var(--accent-green));
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.error {
+  color: #d32f2f;
+  background-color: #ffebee;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  margin-bottom: 20px;
+  border: 1px solid #ffcdd2;
+}
+
+/* --- Admin Dashboard Styles --- */
+.admin-container {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 260px;
+  background: var(--white);
+  color: #555;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.02);
+  z-index: 10;
+}
+
+.sidebar h3 {
+  color: var(--primary-green);
+  text-align: center;
+  margin-bottom: 40px;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.sidebar ul {
+  list-style: none;
+}
+
+.sidebar li {
+  padding: 14px 20px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  border-radius: 12px;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+}
+
+.sidebar li:hover {
+  background-color: var(--light-green);
+  color: var(--dark-green);
+  padding-left: 25px; /* Hiệu ứng trượt nhẹ */
+}
+
+.sidebar li.active {
+  background: linear-gradient(45deg, var(--primary-green), var(--accent-green));
+  color: var(--white);
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+/* Content Area */
+.content {
+  flex: 1;
+  padding: 30px 40px;
+  background-color: #f8fbf8; /* Nền xanh rất nhạt */
+  overflow-y: auto;
+}
+
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+header h1 {
+  color: #2c3e50;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.add-btn {
+  width: auto;
+  padding: 10px 24px;
+  background: var(--primary-green);
+  border-radius: 30px; /* Nút tròn hơn */
+  font-size: 14px;
+}
+
+/* Table Styles */
+.table-container {
+  background: var(--white);
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  padding: 20px;
+  overflow: hidden;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead th {
+  background-color: var(--light-green);
+  color: var(--dark-green);
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 2px solid #c8e6c9;
+}
+
+thead th:first-child { border-top-left-radius: 10px; }
+thead th:last-child { border-top-right-radius: 10px; }
+
+tbody td {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  color: #444;
+  transition: background 0.2s;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background-color: #fafafa;
+}
+
+/* Action Buttons in Table */
+.edit-btn, .delete-btn {
+  width: auto;
+  padding: 6px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  margin-right: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.edit-btn {
+  color: #f57c00;
+  background-color: #fff3e0;
+}
+
+.edit-btn:hover {
+  background-color: #ffe0b2;
+  transform: none;
+}
+
+.delete-btn {
+  color: #d32f2f;
+  background-color: #ffebee;
+}
+
+.delete-btn:hover {
+  background-color: #ffcdd2;
+  transform: none;
+}
+
+/* Scrollbar đẹp hơn */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1; 
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8; 
+}

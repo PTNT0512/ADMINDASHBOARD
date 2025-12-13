@@ -1,0 +1,60 @@
+{
+  "name": "admin-app",
+  "private": true,
+  "version": "0.0.0",
+  "main": "src/electron.js",
+  "type": "module",
+  "description": "Admin Dashboard App",
+  "author": "Your Name",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.example.adminapp",
+    "productName": "AdminDashboard",
+    "files": [
+      "dist/**/*",
+      "src/electron.js"
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "PTNT0512",
+        "repo": "AMINCENTER"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "public/vite.svg"
+    }
+  },
+  "dependencies": {
+    "electron-updater": "^6.6.2",
+    "mongoose": "^8.2.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^30.0.0",
+    "electron-builder": "^24.13.3",
+    "eslint": "^8.57.0",
+    "eslint-plugin-react": "^7.34.1",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.6",
+    "vite": "^5.2.0",
+    "wait-on": "^7.2.0"
+  }
+}
