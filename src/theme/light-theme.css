@@ -1,0 +1,208 @@
+/* Light, soft, and fresh admin theme
+   - Use CSS variables for easy customization
+   - Soft backgrounds, rounded corners, subtle shadows
+*/
+:root{
+  --bg: #f3f6fb; /* very light, soft cool-blue tint */
+  --card-bg: #ffffff; /* card background */
+  --muted: #6b7280; /* gray */
+  --text: #0f172a; /* dark slate */
+  --primary: #60a5fa; /* soft blue */
+  --accent: #7dd3fc; /* cyan accent */
+  --success: #34d399; /* green */
+  --danger: #fb7185; /* rose */
+  --glass: rgba(255,255,255,0.6);
+  --radius: 12px;
+  --shadow-sm: 0 1px 2px rgba(15,23,42,0.04);
+  --shadow-md: 0 6px 18px rgba(15,23,42,0.08);
+  --max-width: 1200px;
+  --gap: 16px;
+  --page-padding: 24px; /* horizontal page edge padding */
+  --header-gap: 5px;   /* spacing between header items */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+}
+
+/* Global resets and body */
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{
+  margin:0;
+  font-family:var(--font-sans);
+  background: linear-gradient(180deg,var(--bg),#ffffff);
+  color:var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height:1.45;
+}
+
+/* Container */
+.app-container{
+  max-width:var(--max-width);
+  margin:24px auto;
+  padding:var(--page-padding);
+}
+
+/* Make header elements align to the page edges and space child items by 5px */
+header,
+.app-header,
+.card-header,
+.license-header,
+.modal-header-custom {
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding-left: var(--page-padding);
+  padding-right: var(--page-padding);
+  box-sizing: border-box;
+}
+
+/* Apply small consistent gap between direct header children */
+header > * + *,
+.app-header > * + *,
+.card-header > * + * {
+  margin-left: var(--header-gap);
+}
+
+/* Cards */
+.card{
+  background:var(--card-bg);
+  border-radius:var(--radius);
+  box-shadow:var(--shadow-md);
+  padding:16px;
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.card:hover{ transform:translateY(-4px); box-shadow:0 12px 30px rgba(15,23,42,0.06); }
+
+/* Header */
+.app-header{
+  background:transparent;
+  padding:18px 24px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.brand{
+  display:flex;align-items:center;gap:12px;
+}
+.brand .logo{
+  width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,var(--primary),var(--accent));box-shadow:var(--shadow-sm);display:flex;align-items:center;justify-content:center;color:white;font-weight:700
+}
+.brand h1{font-size:1.1rem;margin:0;color:var(--text)}
+
+/* Sidebar */
+.sidebar{
+  width:260px;background:transparent;padding:12px 8px;
+}
+.sidebar .nav-item{
+  display:flex;align-items:center;gap:12px;padding:10px;border-radius:10px;color:var(--muted);cursor:pointer;margin-bottom:6px;
+}
+.sidebar .nav-item.active{background:linear-gradient(90deg, rgba(96,165,250,0.12), rgba(125,211,252,0.06));color:var(--primary);}
+
+/* Buttons */
+.btn{
+  background:var(--primary);color:white;padding:8px 12px;border-radius:10px;border:none;cursor:pointer;font-weight:600;box-shadow:var(--shadow-sm);
+}
+.btn.secondary{background:transparent;color:var(--primary);border:1px solid rgba(96,165,250,0.18)}
+.btn.ghost{background:transparent;color:var(--muted);border:none}
+
+/* Inputs */
+.input{
+  width:100%;padding:10px 12px;border-radius:10px;border:1px solid rgba(15,23,42,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.6), rgba(250,250,250,0.6));
+}
+
+/* Tables */
+.table{
+  width:100%;border-collapse:collapse;background:transparent;
+}
+.table th, .table td{padding:10px 12px;border-bottom:1px solid rgba(15,23,42,0.04);text-align:left}
+.table th{color:var(--muted);font-size:0.9rem}
+
+/* Small utilities */
+.kv{display:flex;gap:8px;align-items:center}
+.badge{background:var(--accent);padding:6px 8px;border-radius:8px;color:var(--text);font-weight:600}
+
+/* Responsive */
+@media (max-width:900px){
+  .sidebar{display:none}
+  .app-container{padding:12px}
+}
+
+/* Sidebar link buttons and toggles */
+.link-button{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  width:100%;
+  background:transparent;
+  border:none;
+  padding:10px 12px;
+  border-radius:10px;
+  color:var(--text);
+  text-align:left;
+  cursor:pointer;
+  font-weight:600;
+}
+.link-button:hover{ background: rgba(15,23,42,0.03); }
+.menu-child .link-button{ padding-left:18px; font-weight:500; color:var(--muted); }
+.menu-child.active .link-button{ color:var(--primary); background: rgba(96,165,250,0.06); border-radius:8px; }
+.toggle-icon{ font-size:12px; color:var(--muted); margin-left:8px; }
+
+/* Logout button */
+.logout-btn{
+  width:100%;
+  background:transparent;
+  border:1px solid rgba(15,23,42,0.04);
+  color:var(--danger);
+  padding:10px 12px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:700;
+}
+.logout-btn:hover{ background: rgba(251,113,133,0.06); }
+
+/* Small helper to make menu icons and spacing consistent */
+.menu-parent .toggle-icon{ margin-left:12px }
+
+/* Utility classes for easy application */
+.theme-bg{ background-color: var(--bg) !important; color: var(--text) !important; }
+.theme-panel{ background-color: var(--card-bg) !important; color: var(--text) !important; box-shadow: var(--shadow-md); border-radius: var(--radius); }
+.theme-text{ color: var(--text) !important; }
+.theme-btn{ background: var(--primary) !important; color: white !important; border-radius: 8px; padding: 8px 12px; border: none !important; }
+
+/* Override common dark Tailwind utility classes used across the repo */
+.bg-slate-900, .bg-slate-800, .bg-slate-950, .bg-[#0f172a], .bg-[#020617], .bg-black, .bg-[#000000] {
+  background-color: var(--card-bg) !important;
+}
+.text-white, .text-slate-300, .text-slate-400, .text-slate-200 {
+  color: var(--text) !important;
+}
+.min-h-screen { min-height: auto !important; }
+
+/* Buttons that used dark backgrounds should use theme button instead */
+.bg-slate-700, .bg-slate-600, .bg-slate-800\/20 {
+  background-color: color-mix(in srgb, var(--card-bg) 92%, var(--primary) 8%) !important;
+}
+
+/* Global override: ensure inner pages, panels and common containers use the light theme background */
+/* This helps catch components that still use hard-coded dark colors */
+.content, .main-content, .page, .panel, .container, .settings-container, .main-panel, .card, .card-body, .card-header, .table-container {
+  background-color: var(--card-bg) !important;
+  color: var(--text) !important;
+}
+
+/* Inputs / selects / textareas and buttons should use theme colors */
+input, select, textarea, .input, .form-control {
+  background: var(--card-bg) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text) !important;
+}
+
+button, .btn {
+  background: var(--primary) !important;
+  color: white !important;
+  border: none !important;
+}
+
+/* Fallback for any element explicitly set to near-black backgrounds */
+[style*="#050605"], [style*="#1a1a1a"], [style*="#000000"], [style*="#000"] {
+  background-color: var(--card-bg) !important;
+  color: var(--text) !important;
+}
+

@@ -1,0 +1,111 @@
+:root{
+  /* Gray / White primary theme */
+  --bg-900: #f5f6f8; /* page background */
+  --bg-800: #eef0f3; 
+  --panel: #ffffff; /* panel background */
+  --panel-strong: #ffffff;
+  --muted: #6b7280; /* muted labels */
+  --primary: #374151; /* slate-700 accent for icons and headings */
+  --accent: #0f172a; /* dark accent for emphasis */
+  --success: #16a34a;
+  --danger: #ef4444;
+  --glass-border: rgba(15,23,42,0.04);
+  --text: #0f172a; /* dark text on light bg */
+  --numeric-dim: #475569; /* dim numeric labels */
+}
+
+/* Global background */
+.dashboard-layout, .app-root, body { background: var(--bg-900) !important; color: var(--text) !important }
+.dashboard-content, .content-inner { background: transparent !important }
+
+/* Header */
+.dashboard-content header, .content-inner > header { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important; border-radius: 20px; padding: 1rem 1.25rem; }
+.dashboard-content header h1, .content-inner header h1 { color: var(--text); font-weight:900; font-size:1.6rem }
+
+/* Glass cards used across pages */
+.glass-card{ background: var(--panel); border:1px solid var(--glass-border); border-radius:16px; box-shadow: 0 8px 20px rgba(16,24,40,0.06); }
+.glass-card p, .glass-card label, .glass-card input, .glass-card select { color: var(--text) }
+
+/* Numeric and statistic styles */
+.stat-card{ background: var(--panel); border: 1px solid var(--glass-border); padding:18px; border-radius:12px }
+.stat-card .stat-title{ color: var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px }
+.stat-card .stat-value{ font-size:28px; font-weight:900; color:var(--primary); }
+.stat-card .stat-value.success{ color: var(--success); text-shadow: 0 2px 12px rgba(16,185,129,0.08) }
+.stat-card .stat-value.danger{ color: var(--danger); text-shadow: 0 2px 12px rgba(239,68,68,0.06) }
+
+/* Large numeric emphasis used in tables and lists */
+.numeric-large, .big-number, .balance-value { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', 'Segoe UI Mono', monospace; font-weight:800; color:var(--primary); font-size:1.05rem }
+.numeric-large.positive{ color: var(--success) }
+.numeric-large.negative{ color: var(--danger) }
+
+/* Table numeric styles */
+table td .font-mono, table td .balance-value { color: var(--numeric-dim); font-weight:800 }
+table td .balance-value { color: var(--accent); font-weight:900 }
+
+/* Improve header contrast */
+.dashboard-content header, .content-inner > header { background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01)) !important; border-radius: 18px; padding: 0.8rem 1rem }
+.dashboard-content header h1, .content-inner header h1 { color: var(--text); font-weight:900; font-size:1.5rem }
+
+/* Buttons */
+.btn-3d{ background: linear-gradient(180deg,var(--accent), #0284c7); color:#fff; border-radius:16px; padding:14px 18px; font-weight:900; box-shadow: 0 8px 0 rgba(2,6,23,0.6); border:none }
+.btn-3d:active{ transform: translateY(4px); box-shadow:none }
+
+/* Inputs */
+.custom-input{ background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.04); color:var(--text); padding:12px; border-radius:16px }
+.custom-input:focus{ outline:none; box-shadow: 0 0 0 4px rgba(14,165,233,0.08); border-color: rgba(14,165,233,0.3) }
+
+/* Table styles */
+table thead th{ background: rgba(2,6,23,0.6); color:var(--muted); font-weight:900; text-transform:uppercase; font-size:11px }
+table tbody tr{ background: transparent }
+table tbody tr:hover{ background: rgba(255,255,255,0.02) }
+
+/* Badges and small UI */
+.badge-live{ background: rgba(56,189,248,0.06); color: var(--accent); padding:6px 10px; border-radius:999px; font-weight:900 }
+.status-pill{ padding:6px 10px; border-radius:10px; font-weight:900 }
+
+/* Decorative large SVGs neutralized */
+.glass-card .absolute, .glass-card .svg-deco { opacity:0.06 }
+
+/* Scrollbars */
+.custom-scrollbar::-webkit-scrollbar{ width:6px } 
+.custom-scrollbar::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.03); border-radius:10px }
+
+/* Ensure page icons contrast */
+.page-icon{ color:var(--primary) }
+
+/* Animations and motion */
+@keyframes pop-in {
+  0% { transform: scale(0.88) translateY(6px); opacity: 0 }
+  60% { transform: scale(1.03) translateY(-2px); opacity: 1 }
+  100% { transform: scale(1) translateY(0); opacity: 1 }
+}
+
+@keyframes float-slow {
+  0% { transform: translateY(0) }
+  50% { transform: translateY(-6px) }
+  100% { transform: translateY(0) }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0 }
+  100% { background-position: 200% 0 }
+}
+
+.icon-animate{ animation: pop-in 420ms cubic-bezier(.2,.9,.25,1) both }
+.icon-animate:hover{ transform: rotate(-6deg) scale(1.06); transition: transform 220ms ease }
+
+.glass-card{ transition: transform 260ms ease, box-shadow 260ms ease, border-color 260ms ease }
+.glass-card:hover{ transform: translateY(-8px); box-shadow: 0 28px 60px rgba(2,6,23,0.7); border-color: rgba(255,255,255,0.07) }
+
+.stat-card{ transition: transform 260ms ease, box-shadow 260ms ease }
+.stat-card:hover{ transform: translateY(-6px); box-shadow: 0 18px 40px rgba(2,6,23,0.45) }
+
+/* Subtle floating for decorative svgs */
+.svg-deco{ animation: float-slow 6s ease-in-out infinite }
+
+/* Soft shimmer on accent elements */
+.accent-shimmer{ background: linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02), rgba(255,255,255,0.01)); background-size: 400% 100%; animation: shimmer 3s linear infinite }
+
+/* Entrance for panels */
+.panel-enter{ animation: pop-in 420ms cubic-bezier(.2,.9,.25,1) }
+

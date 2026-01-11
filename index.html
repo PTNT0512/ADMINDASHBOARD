@@ -4,7 +4,164 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <script>
+      // Inline console suppressor: runs before other scripts (prevents noisy dev logs)
+      (function(){
+        try {
+          var IGNORED = [/cdn\.tailwindcss\.com/i, /\[vite\]/i, /Download the React DevTools/i, /Electron Security Warning/i, /connecting\.\.\./i, /connected\./i];
+          function shouldIgnore() {
+            for (var i=0;i<arguments.length;i++){
+              try{ var a = arguments[i]; var s = (typeof a==='string'?a:JSON.stringify(a));
+                for (var j=0;j<IGNORED.length;j++) if (IGNORED[j].test(s)) return true;
+              }catch(e){}
+            }
+            return false;
+          }
+          var methods = ['log','info','warn','error','debug'];
+          methods.forEach(function(m){
+            var orig = console[m];
+            console[m] = function(){ if (shouldIgnore.apply(null, arguments)) return; try{ orig.apply(console, arguments);}catch(e){} };
+          });
+          window.addEventListener && window.addEventListener('error', function(ev){ var msg = ev && ev.message?ev.message:''; if (IGNORED.some(function(r){return r.test(msg)})) ev.preventDefault(); });
+          window.addEventListener && window.addEventListener('unhandledrejection', function(ev){ var r = ev && ev.reason? (typeof ev.reason==='string'?ev.reason:JSON.stringify(ev.reason)) : ''; if (IGNORED.some(function(rx){return rx.test(r)})) ev.preventDefault(); });
+        } catch(e) {}
+      })();
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
     <title>admin-app</title>
+    <style>
+      :root {
+        /* Map legacy tactical variables to neutral light-theme fallbacks */
+        --mil-bg: #f7fafc;
+        --mil-panel: #ffffff;
+        --mil-accent: #60a5fa;
+        --mil-accent-dim: rgba(96,165,250,0.18);
+        --mil-border: rgba(15,23,42,0.06);
+        --mil-text: #0f172a;
+        --mil-danger: #fb7185;
+      }
+
+      html, body, #root {
+        background: linear-gradient(180deg,var(--bg),#ffffff);
+        min-height: 100vh;
+        color: var(--text);
+        margin: 0;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+      }
+
+      .sidebar {
+        background-color: transparent;
+        border-right: 1px solid rgba(15,23,42,0.03);
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+      }
+
+      .sidebar h3 {
+        color: var(--text);
+        font-weight:700;
+        margin:0 0 12px 0;
+        padding-bottom: 8px;
+      }
+
+      .sidebar ul li {
+        border-bottom: 1px solid rgba(42, 48, 42, 0.3);
+        transition: all 0.2s ease;
+        color: var(--mil-text) !important;
+      }
+
+      .sidebar ul li:hover { background: rgba(15,23,42,0.03); }
+      .sidebar ul li.active { background: linear-gradient(90deg, rgba(96,165,250,0.06), rgba(125,211,252,0.02)); color:var(--primary); }
+
+      .sidebar ul li i {
+        color: var(--mil-accent-dim);
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        display: inline-block;
+      }
+
+      .sidebar ul li:hover i {
+        color: var(--mil-accent) !important;
+        transform: scale(1.2);
+        text-shadow: 0 0 10px var(--mil-accent);
+      }
+
+      header { background: transparent; border-bottom: 1px solid rgba(15,23,42,0.03); }
+      header h1 { color: var(--text); font-weight:800; letter-spacing:0.2px }
+
+      /* Neutral button defaults, specific buttons use theme classes */
+      button { background: transparent; color: inherit; border: none; border-radius:8px; padding:8px 10px; cursor:pointer }
+      button:hover { background: rgba(15,23,42,0.03) }
+
+      table {
+        background: var(--mil-panel) !important;
+        border: 1px solid var(--mil-border) !important;
+      }
+      th {
+        background: color-mix(in srgb, var(--mil-panel) 92%, var(--mil-accent-dim) 8%) !important;
+        color: var(--mil-text) !important;
+        border-bottom: 2px solid var(--mil-border) !important;
+      }
+      td {
+        border-bottom: 1px solid var(--mil-border) !important;
+        color: var(--mil-text) !important;
+      }
+      input, select, textarea {
+        background: var(--mil-panel) !important;
+        border: 1px solid var(--mil-border) !important;
+        color: var(--mil-text) !important;
+      }
+
+      /* Ghi đè các container có thể bị trắng từ CSS cũ */
+      .settings-container, .main-content, .container {
+        background-color: transparent !important;
+        background: transparent !important;
+        border: none !important;
+      }
+
+      /* Custom Scrollbar for Military Theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+
+      ::-webkit-scrollbar-track {
+        background: var(--mil-bg);
+        border-left: 1px solid var(--mil-border);
+      }
+
+      ::-webkit-scrollbar-thumb {
+        background: var(--mil-accent-dim);
+        border: 1px solid var(--mil-accent);
+      }
+
+      ::-webkit-scrollbar-thumb:hover {
+        background: var(--mil-accent);
+        box-shadow: 0 0 10px var(--mil-accent);
+      }
+
+      /* Removed scanline overlays and tactical pulsing to keep UI neutral */
+
+      /* Tactical Card Update Animations */
+      @keyframes mil-card-scan {
+        0% { transform: translateY(-100%); opacity: 0; }
+        50% { opacity: 0.3; }
+        100% { transform: translateY(300%); opacity: 0; }
+      }
+
+      @keyframes mil-border-glow {
+        0%, 100% { border-color: rgba(0, 255, 65, 0.2); }
+        50% { border-color: var(--mil-accent); box-shadow: inset 0 0 15px rgba(0, 255, 65, 0.1), 0 0 10px var(--mil-accent-dim); }
+      }
+
+      .mil-card-tactical { position: relative; }
+
+      /* Neutral panel helpers */
+      .tactical-panel { margin-top:auto; padding:12px; border-top:1px solid rgba(15,23,42,0.03); font-size:12px; color:var(--muted); }
+      .tactical-row { display:flex; justify-content:space-between; margin-bottom:6px }
+      .tactical-row .label{ font-weight:600 }
+      .tactical-row .value { color: var(--text) }
+    </style>
   </head>
   <body>
     <div id="root"></div>

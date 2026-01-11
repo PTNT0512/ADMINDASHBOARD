@@ -1,60 +1,52 @@
 {
   "name": "admin-app",
-  "private": true,
-  "version": "0.0.0",
-  "main": "src/electron.js",
-  "type": "module",
-  "description": "Admin Dashboard App",
-  "author": "Your Name",
+  "version": "1.0.0",
+  "main": "electron/dashboard.cjs",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "electron:dev": "concurrently -k \"cross-env BROWSER=none npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "electron:build": "npm run build && electron-builder"
-  },
-  "build": {
-    "appId": "com.example.adminapp",
-    "productName": "AdminDashboard",
-    "files": [
-      "dist/**/*",
-      "src/electron.js"
-    ],
-    "directories": {
-      "output": "release"
-    },
-    "publish": [
-      {
-        "provider": "github",
-        "owner": "PTNT0512",
-        "repo": "AMINCENTER"
-      }
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "public/vite.svg"
-    }
+    "start": "npm run electron:dev:dashboard",
+    "dev:center": "cross-env VITE_APP_MODE=center vite --port 5174",
+    "dev:dashboard": "cross-env NODE_OPTIONS=--max_old_space_size=4096 VITE_APP_MODE=dashboard vite --port 5173",
+    "build:center": "cross-env VITE_APP_MODE=center vite build && electron-builder --config electron-builder.center.cjs",
+    "build:dashboard": "cross-env VITE_APP_MODE=dashboard vite build && electron-builder --config electron-builder.dashboard.cjs",
+    "compile:main": "bytenode --compile electron/dashboard.cjs",
+    "electron:dev": "npm run electron:dev:center",
+    "electron:dev:center": "concurrently -k \"npm run dev:center\" \"wait-on http://localhost:5174 && cross-env VITE_APP_MODE=center electron electron/center.cjs\"",
+    "electron:dev:dashboard": "concurrently -k \"npm run dev:dashboard\" \"wait-on http://localhost:5173 && cross-env VITE_APP_MODE=dashboard electron electron/dashboard.cjs\"",
+    "electron:build:center": "npm run build:center",
+    "electron:build:dashboard": "npm run build:dashboard"
   },
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "bootstrap": "^5.3.8",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
     "electron-updater": "^6.6.2",
+    "express": "^5.2.1",
+    "form-data": "^4.0.5",
+    "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.2.0",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-bootstrap": "^2.10.10",
+    "react-dom": "^18.2.0",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3",
+    "styled-components": "^6.1.19"
   },
   "devDependencies": {
-    "@types/react": "^18.2.66",
-    "@types/react-dom": "^18.2.22",
-    "@vitejs/plugin-react": "^4.2.1",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.23",
+    "bytenode": "^1.5.7",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
-    "electron": "^30.0.0",
-    "electron-builder": "^24.13.3",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react": "^7.34.1",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.6",
-    "vite": "^5.2.0",
+    "daisyui": "^5.5.14",
+    "electron": "^28.0.0",
+    "electron-builder": "^24.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
+    "vite": "^5.4.21",
     "wait-on": "^7.2.0"
   }
 }
