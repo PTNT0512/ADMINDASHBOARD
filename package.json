@@ -2,10 +2,14 @@
   "name": "admin-app",
   "version": "1.0.0",
   "main": "electron/dashboard.cjs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/PTNT0512/ADMINDASHBOARD.git"
+  },
   "scripts": {
     "start": "npm run electron:dev:dashboard",
     "dev:center": "cross-env VITE_APP_MODE=center vite --port 5174",
-    "dev:dashboard": "cross-env NODE_OPTIONS=--max_old_space_size=4096 VITE_APP_MODE=dashboard vite --port 5173",
+    "dev:dashboard": "cross-env NODE_OPTIONS=--max-old-space-size=2048 VITE_APP_MODE=dashboard vite --port 5173",
     "build:center": "cross-env VITE_APP_MODE=center vite build && electron-builder --config electron-builder.center.cjs",
     "build:dashboard": "cross-env VITE_APP_MODE=dashboard vite build && electron-builder --config electron-builder.dashboard.cjs",
     "compile:main": "bytenode --compile electron/dashboard.cjs",
@@ -13,7 +17,9 @@
     "electron:dev:center": "concurrently -k \"npm run dev:center\" \"wait-on http://localhost:5174 && cross-env VITE_APP_MODE=center electron electron/center.cjs\"",
     "electron:dev:dashboard": "concurrently -k \"npm run dev:dashboard\" \"wait-on http://localhost:5173 && cross-env VITE_APP_MODE=dashboard electron electron/dashboard.cjs\"",
     "electron:build:center": "npm run build:center",
-    "electron:build:dashboard": "npm run build:dashboard"
+    "electron:build:dashboard": "npm run build:dashboard",
+    "deploy": "git add . && (git commit -m \"Auto update\" || echo No changes to commit) && npm version patch && git push origin main --follow-tags",
+    "publish": "npm run electron:build:dashboard -- --publish always"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

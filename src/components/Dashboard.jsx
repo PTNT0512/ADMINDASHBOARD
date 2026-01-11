@@ -31,6 +31,7 @@ import TaixiuResultPanel from './TaixiuResultPanel.jsx';
 import RevenueChart from './RevenueChart.jsx';
 import TaiXiuCao from './TaiXiuCao.jsx';
 import TaiXiuNan from './TaiXiuNan.jsx';
+import ServerManager from './ServerManager.jsx';
 
 // Component hỗ trợ hiệu ứng nhảy số
 const CountUp = ({ end, duration = 1000, suffix = "" }) => {
@@ -354,9 +355,6 @@ function Dashboard({ onLogout }) {
         {activeTab === 'e_wallet' && <EWallet />}
 
         {/* Trò chơi */}
-        {activeTab === 'plinko' && <TxRoomPanel title="Plinko" roomType="plinko" />}
-        {activeTab === 'booms' && <TxRoomPanel title="Booms" roomType="booms" />}
-        {activeTab === 'xeng' && <TxRoomPanel title="Xèng Hoa Quả" roomType="xeng" />}
         {activeTab === 'taixiu_cao' && <TaiXiuCao />}
         {activeTab === 'taixiu_nan' && <TaiXiuNan />}
 
@@ -380,6 +378,7 @@ function Dashboard({ onLogout }) {
 
         {/* Hệ thống */}
         {activeTab === 'bot_manager' && <BotManager />}
+        {activeTab === 'server_manager' && <ServerManager />}
         {activeTab === 'game_server' && <GameServerPanel />}
         {activeTab === 'server_1' && <Server1Panel />}
         {activeTab === 'server_2' && <Server2Panel />}

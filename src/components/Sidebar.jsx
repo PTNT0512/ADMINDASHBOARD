@@ -193,6 +193,7 @@ function Sidebar({
       {collapsed && <div style={{ margin: '10px 0', borderTop: '1px solid rgba(0,0,0,0.05)' }}></div>}
       
       <MenuItem id="bot_manager" icon="fa-robot" label="Bot Manager" />
+      <MenuItem id="server_manager" icon="fa-server" label="Quản lý Server" />
       <MenuItem id="settings" icon="fa-cogs" label="Cài đặt chung" />
       <MenuItem id="cpu_monitor" icon="fa-microchip" label="Monitor" />
       

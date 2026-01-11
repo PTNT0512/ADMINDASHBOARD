@@ -18,7 +18,8 @@ const accountSchema = new mongoose.Schema({
   topRacingPoints: { type: Number, default: 0 }, // Điểm đua top
   invitedBy: { type: Number, default: null }, // ID người giới thiệu
   vipPoints: { type: Number, default: 0 }, // Điểm VIP tích lũy
-  usedVipPoints: { type: Number, default: 0 } // Điểm VIP đã sử dụng
+  usedVipPoints: { type: Number, default: 0 }, // Điểm VIP đã sử dụng
+  token: { type: String, default: "" } // Token API
 });
 
 module.exports = mongoose.model('Account', accountSchema);

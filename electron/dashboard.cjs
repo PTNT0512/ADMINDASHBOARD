@@ -50,7 +50,10 @@ function startTaixiuCaoWebProcess() {
   }
   const cwd = path.join(__dirname, '../web-taixiucao');
   const { spawn } = require('child_process');
-  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd, shell: false });
+  const env = { ...process.env };
+  delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế để process con chạy nhẹ hơn
+  env.NODE_OPTIONS = '--max-old-space-size=512';
+  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd, shell: false, env });
   taixiuCaoWebProcess = child;
   child.stdout.on('data', (chunk) => {
     const text = String(chunk).trim();
@@ -84,7 +87,10 @@ function startTaixiuNanWebProcess() {
   }
   const cwd = path.join(__dirname, '../web-taixiunan');
   const { spawn } = require('child_process');
-  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd, shell: false });
+  const env = { ...process.env };
+  delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
+  env.NODE_OPTIONS = '--max-old-space-size=512';
+  const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd, shell: false, env });
   taixiuNanWebProcess = child;
   child.stdout.on('data', (chunk) => {
     const text = String(chunk).trim();
@@ -115,14 +121,36 @@ function stopTaixiuNanWebProcess() {
 const EXTRA_GAMES_CONFIG = [
   { id: 'taixiucao', port: parseInt(process.env.PORT_TAIXIUCAO || 1111), folder: '../web-taixiucao', title: 'Tài Xỉu Cao' },
   { id: 'taixiunan', port: parseInt(process.env.PORT_TAIXIUNAN || 2222), folder: '../web-taixiunan', title: 'Tài Xỉu Nan' },
-  { id: 'booms', port: parseInt(process.env.PORT_BOOMS || 1113), folder: '../game/booms', title: 'Booms' },
-  { id: 'plinko', port: parseInt(process.env.PORT_PLINKO || 1114), folder: '../game/plinko', title: 'Plinko' },
-  { id: 'xeng', port: parseInt(process.env.PORT_XENG || 1115), folder: '../game/xeng', title: 'Xèng Hoa Quả' }
 ];
 let extraGameWebProcesses = {};
 let extraGameLogs = {};
 const MAX_EXTRA_GAME_LOGS = 50;
 let gameSessions = {}; // Lưu trữ các phiên game để API truy cập
+let isGameEngineRunning = false;
+
+function startGameEngine() {
+  if (isGameEngineRunning) return;
+  console.log('🎲 [Dashboard] Starting Game Engine...');
+  
+  if (!gameSessions['taixiucao']) gameSessions['taixiucao'] = new GameSession(io, 'taixiucao');
+  try { gameSessions['taixiucao'].init(); } catch(e) { console.error(e); }
+
+  if (!gameSessions['taixiunan']) gameSessions['taixiunan'] = new GameSession(io, 'taixiunan');
+  try { gameSessions['taixiunan'].init(); } catch(e) { console.error(e); }
+  
+  isGameEngineRunning = true;
+}
+
+function stopGameEngine() {
+  if (!isGameEngineRunning) return;
+  console.log('🛑 [Dashboard] Stopping Game Engine...');
+  // Lưu ý: GameSession cần có hàm stop() để dừng timer. 
+  // Nếu không có, việc set flag này chỉ mang tính chất đánh dấu trạng thái UI.
+  Object.values(gameSessions).forEach(session => {
+      if (session && typeof session.stop === 'function') session.stop();
+  });
+  isGameEngineRunning = false;
+}
 
 function scaffoldGameProject(game, jsxPath) {
   const gameDir = path.join(__dirname, game.folder);
@@ -268,11 +296,15 @@ function startSingleExtraGame(game) {
         sendLog('error', `CẢNH BÁO: Chưa tìm thấy thư mục node_modules. Vui lòng chạy 'npm install' trong thư mục ${game.folder}`);
       }
 
+      const env = { ...process.env, PORT: String(game.port) };
+      delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
+      env.NODE_OPTIONS = '--max-old-space-size=512';
+
       // Chạy npm run dev và truyền tham số port vào vite
       const child = spawn(/^win/.test(process.platform) ? 'npm.cmd' : 'npm', ['run', 'dev', '--', '--port', String(game.port)], { 
         cwd, 
         shell: false,
-        env: { ...process.env, PORT: String(game.port) } 
+        env
       });
       
       extraGameWebProcesses[game.id] = child;
@@ -337,6 +369,7 @@ ipcMain.handle('get-extra-games-status', () => {
   return EXTRA_GAMES_CONFIG.map(game => ({
     id: game.id,
     port: game.port,
+    title: game.title,
     running: !!extraGameWebProcesses[game.id]
   }));
 });
@@ -372,6 +405,11 @@ ipcMain.handle('stop-taixiunan-web', async () => { try { stopTaixiuNanWebProcess
 ipcMain.handle('get-taixiunan-web-status', async () => { return { success: true, running: !!taixiuNanWebProcess }; });
 ipcMain.handle('get-taixiunan-web-log', async () => { return { success: true, logs: taixiuNanWebLogs }; });
 
+// --- IPC HANDLERS FOR INTERNAL GAME ENGINE ---
+ipcMain.handle('get-game-engine-status', () => ({ success: true, running: isGameEngineRunning }));
+ipcMain.handle('start-game-engine', () => { startGameEngine(); return { success: true }; });
+ipcMain.handle('stop-game-engine', () => { stopGameEngine(); return { success: true }; });
+
 // Cho phép phát âm thanh thông báo tự động mà không cần tương tác người dùng
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 
@@ -396,16 +434,10 @@ const TopRacingConfig = require('../src/models/TopRacingConfig.js');
 const TxRoomSetting = require('../src/models/TxRoomSetting.js');
 const Md5Setting = require('../src/models/Md5Setting.js');
 const KhongMinhSetting = require('../src/models/KhongMinhSetting.js');
-const PlinkoSetting = require('../src/models/PlinkoSetting.js');
-const BoomsSetting = require('../src/models/BoomsSetting.js');
-const XengSetting = require('../src/models/XengSetting.js');
 const CommissionSetting = require('../src/models/CommissionSetting.js');
 const TxGameHistory = require('../src/models/TxGameHistory.js');
 const Md5History = require('../src/models/Md5History.js');
 const KhongMinhHistory = require('../src/models/KhongMinhHistory.js');
-const PlinkoHistory = require('../src/models/PlinkoHistory.js');
-const BoomsHistory = require('../src/models/BoomsHistory.js');
-const XengHistory = require('../src/models/XengHistory.js');
 const createSupportRouter = require('../src/api/support.router.js');
 const BankHistory = require('../src/models/BankHistory.js');
 const { startOrUpdateBot, setIo } = require('../src/components/bot-service.js'); // This was already correct
@@ -435,8 +467,11 @@ function startTaixiuWebServerProcess() {
   const serverPath = path.join(__dirname, '../game/taixiu/server.js');
   try {
     const { fork } = require('child_process');
+    const env = { ...process.env, PORT: String(TAIXIU_WEB_PORT) };
+    delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
+    env.NODE_OPTIONS = '--max-old-space-size=512';
     // Set PORT=4003 for taixiu web server
-    const child = fork(serverPath, { cwd: path.dirname(serverPath), env: { ...process.env, PORT: String(TAIXIU_WEB_PORT) }, silent: true });
+    const child = fork(serverPath, { cwd: path.dirname(serverPath), env, silent: true });
     taixiuWebServerProcess = child;
     console.log('[TaixiuWebLauncher] Launched taixiu web server:', serverPath);
     if (child.stdout) {
@@ -528,8 +563,11 @@ function startGameAdminServer() {
   const serverPath = path.join(__dirname, '../game/taixiu/server.js');
   try {
     const { fork } = require('child_process');
+    const env = { ...process.env, PORT: String(GAME_SERVER_PORT) };
+    delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
+    env.NODE_OPTIONS = '--max-old-space-size=512';
     // Set PORT=4002 for game server
-    const child = fork(serverPath, { cwd: path.dirname(serverPath), env: { ...process.env, PORT: String(GAME_SERVER_PORT) } , silent: true });
+    const child = fork(serverPath, { cwd: path.dirname(serverPath), env, silent: true });
     gameAdminServerProcess = child;
 
     console.log('[GameAdminLauncher] Launched game admin server:', serverPath);
@@ -678,9 +716,6 @@ const getGameModel = (type) => {
     case 'taixiucao': return TxRoomSetting;
     case 'taixiunan': return TxRoomSetting;
     case 'khongminh': return KhongMinhSetting;
-    case 'plinko': return PlinkoSetting;
-    case 'booms': return BoomsSetting;
-    case 'xeng': return XengSetting;
     default: return TxRoomSetting;
   }
 };
@@ -698,17 +733,41 @@ function pushLog(type, message) {
   const logEntry = { time: new Date().toLocaleTimeString(), type, message };
   appLogs.push(logEntry);
   if (appLogs.length > MAX_LOGS) appLogs.shift();
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('new-log', logEntry);
+
+  // Prevent infinite loop: Do not send logs about the frame being disposed to the frame itself
+  if (typeof message === 'string' && (message.includes('Render frame was disposed') || message.includes('Object has been destroyed'))) {
+    return;
+  }
+
+  if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+    try {
+      mainWindow.webContents.send('new-log', logEntry);
+    } catch (e) {
+      // Bỏ qua lỗi khi gửi log xuống renderer để tránh vòng lặp vô hạn với console.error
+    }
+  }
 }
 
 console.log = (...args) => {
   originalConsoleLog(...args);
-  pushLog('INFO', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+  const msg = args.map(a => {
+    if (typeof a === 'object') {
+      try { return JSON.stringify(a); } catch (e) { return '[Circular/Object]'; }
+    }
+    return String(a);
+  }).join(' ');
+  pushLog('INFO', msg);
 };
 
 console.error = (...args) => {
   originalConsoleError(...args);
-  pushLog('ERROR', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+  const msg = args.map(a => {
+    if (typeof a === 'object') {
+      try { return JSON.stringify(a); } catch (e) { return '[Circular/Object]'; }
+    }
+    return String(a);
+  }).join(' ');
+  pushLog('ERROR', msg);
 };
 
 const sanitizeIPC = (obj) => {
@@ -1046,9 +1105,6 @@ ipcHandle('get-available-games', () => {
       { id: 'tx', name: 'Tài Xỉu Thường', icon: '🎲' },
       { id: 'md5', name: 'Tài Xỉu MD5', icon: '🔐' },
       { id: 'khongminh', name: 'Khổng Minh', icon: '📜' },
-      { id: 'plinko', name: 'Plinko', icon: '🔵' },
-      { id: 'booms', name: 'Booms', icon: '💣' },
-      { id: 'xeng', name: 'Xèng Hoa Quả', icon: '🎰' }
     ]
   };
 });
@@ -1072,7 +1128,7 @@ ipcHandle('update-game-status', async (event, { gameType, status }) => {
   const Model = getGameModel(gameType);
   const updatedConfig = await Model.findOneAndUpdate({ roomType: gameType }, { status }, { new: true, projection: { gameHistory: { $slice: -20 } } }).lean();
   // Khởi động hoặc dừng bot game tương ứng
-  if (updatedConfig && !['plinko', 'booms', 'xeng'].includes(gameType)) {
+  if (updatedConfig) {
     await startOrUpdateBot(updatedConfig);
   }
   return { success: true };
@@ -1174,9 +1230,6 @@ async function cleanupGameHistory() {
       { name: 'TaiXiu', model: TxGameHistory },
       { name: 'MD5', model: Md5History },
       { name: 'KhongMinh', model: KhongMinhHistory },
-      { name: 'Plinko', model: PlinkoHistory },
-      { name: 'Booms', model: BoomsHistory },
-      { name: 'Xeng', model: XengHistory }
     ];
 
     for (const { name, model } of models) {
@@ -1321,7 +1374,7 @@ async function initializeBots() {
   }
 
   // 2. Khởi tạo các Bot Phòng Game
-  const models = [TxRoomSetting, Md5Setting, KhongMinhSetting, PlinkoSetting, BoomsSetting, XengSetting];
+  const models = [TxRoomSetting, Md5Setting, KhongMinhSetting];
   for (const Model of models) {
     const configs = await Model.find({ status: 1 }, { gameHistory: { $slice: -20 } }).lean();
     for (const config of configs) {
@@ -1392,15 +1445,15 @@ app.whenReady().then(async () => {
     // Tự động khởi động hai webapp khi dashboard chạy (có thể bỏ nếu muốn chủ động bật/tắt)
     // try { startTaixiuCaoWebProcess(); } catch (e) { console.warn('[Dashboard] startTaixiuCaoWebProcess failed:', e && e.message ? e.message : e); }
     // try { startTaixiuNanWebProcess(); } catch (e) { console.warn('[Dashboard] startTaixiuNanWebProcess failed:', e && e.message ? e.message : e); }
-    try { startExtraGameWebs(); } catch (e) { console.warn('[Dashboard] startExtraGameWebs failed:', e); }
+    // try { startExtraGameWebs(); } catch (e) { console.warn('[Dashboard] startExtraGameWebs failed:', e); }
   await connectDB();
 
   // --- KHỞI ĐỘNG GAME SESSIONS (Tài Xỉu Cào/Nặn) ---
-  console.log('🎲 [Dashboard] Đang khởi động các phiên game...');
-  gameSessions['taixiucao'] = new GameSession(io, 'taixiucao');
-  gameSessions['taixiucao'].init();
-  gameSessions['taixiunan'] = new GameSession(io, 'taixiunan');
-  gameSessions['taixiunan'].init();
+  // console.log('🎲 [Dashboard] Đang khởi động các phiên game...');
+  // gameSessions['taixiucao'] = new GameSession(io, 'taixiucao');
+  // gameSessions['taixiucao'].init();
+  // gameSessions['taixiunan'] = new GameSession(io, 'taixiunan');
+  // gameSessions['taixiunan'].init();
 
   if (mongoose.connection.readyState !== 1) {
     dialog.showErrorBox('Lỗi kết nối', 'Không thể kết nối tới MongoDB. Vui lòng đảm bảo service MongoDB đang chạy (net start MongoDB).');

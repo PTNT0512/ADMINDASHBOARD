@@ -1,4 +1,5 @@
 const TelegramBot = require('node-telegram-bot-api');
+const crypto = require('crypto');
 const Account = require('../models/Account.js');
 const Deposit = require('../models/Deposit.js');
 const Withdraw = require('../models/Withdraw.js');
@@ -148,19 +149,21 @@ async function startMainBot(botConfig) {
         // Gán vào biến toàn cục sau khi đã chắc chắn kết nối thành công
         mainBotInstance = bot;
 
-        // Lệnh /start: Đăng ký tài khoản
-        bot.onText(/\/start(?: (.+))?|\/menu/, async (msg, match) => {
+        // Lệnh /start hoặc /menu
+        bot.onText(/^\/(start|menu)(?:\s+(.+))?$/i, async (msg, match) => {
             const userId = msg.from.id;
             const username = msg.from.first_name || 'Người dùng';
-            const refId = match && match[1] ? parseInt(match[1]) : null; // Lấy ID người giới thiệu từ link start
+            const command = match[1].toLowerCase();
+            const refId = match[2] ? parseInt(match[2]) : null; // Lấy ID người giới thiệu từ link start
 
             try {
                 let account = await Account.findOne({ userId });
                 if (!account) {
-                    const newAccountData = { userId, balance: 0, status: 1 };
+                    const token = crypto.randomBytes(32).toString('hex');
+                    const newAccountData = { userId, balance: 0, status: 1, token };
                     
                     // Xử lý giới thiệu
-                    if (refId && refId !== userId) {
+                    if (command === 'start' && refId && refId !== userId) {
                         const referrer = await Account.findOne({ userId: refId });
                         if (referrer) {
                             newAccountData.invitedBy = refId;
@@ -169,12 +172,16 @@ async function startMainBot(botConfig) {
                     }
 
                     await Account.create(newAccountData);
-                    bot.sendMessage(msg.chat.id, `👋 Chào mừng <b>${username}</b>!\nTài khoản đã được tạo. ID: <code>${userId}</code>\n\nChọn một chức năng bên dưới để bắt đầu:`, { 
+                    await bot.sendMessage(msg.chat.id, `👋 Chào mừng <b>${username}</b>!\nTài khoản đã được tạo.\nID: <code>${userId}</code>\nToken: <code>${token}</code>\n\nChọn một chức năng bên dưới để bắt đầu:`, { 
                         parse_mode: 'HTML',
                         reply_markup: mainMenuKeyboard
                     });
                 } else {
-                    bot.sendMessage(msg.chat.id, `👋 Chào mừng trở lại, <b>${username}</b>!\n\nBạn muốn thực hiện tác vụ nào?`, { 
+                    if (!account.token) {
+                        account.token = crypto.randomBytes(32).toString('hex');
+                        await account.save();
+                    }
+                    await bot.sendMessage(msg.chat.id, `👋 Chào mừng trở lại, <b>${username}</b>!\n\nBạn muốn thực hiện tác vụ nào?`, { 
                         parse_mode: 'HTML',
                         reply_markup: mainMenuKeyboard
                     });

@@ -3,13 +3,9 @@ import React, { useState } from 'react';
 import GameConfigPanel from './GameConfigPanel.jsx';
 
 const GameManager = () => {
-    const [activeTab, setActiveTab] = useState('plinko');
+    const [activeTab, setActiveTab] = useState('');
 
-    const tabs = [
-        { id: 'plinko', label: 'Plinko', type: 'config', gameType: 'plinko', title: 'Cấu hình Plinko' },
-        { id: 'booms', label: 'Booms', type: 'config', gameType: 'booms', title: 'Cấu hình Booms' },
-        { id: 'xeng', label: 'Xèng Hoa Quả', type: 'config', gameType: 'xeng', title: 'Cấu hình Xèng Hoa Quả' },
-    ];
+    const tabs = [];
 
     return (
         <div className="p-4">

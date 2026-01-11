@@ -1,4 +1,5 @@
 import React from 'react';
+import UpdateChecker from './UpdateChecker';
 
 function Settings({ settings, onSettingChange, onSaveSettings }) {
   return (
@@ -10,18 +11,6 @@ function Settings({ settings, onSettingChange, onSaveSettings }) {
         <div className="input-group">
           <label>Tên miền (Domain)</label>
           <input type="text" name="domain" value={settings.domain} onChange={onSettingChange} placeholder="example.com" />
-        </div>
-        <div className="input-group">
-          <label>Token Bot Chính</label>
-          <input type="text" name="mainBotToken" value={settings.mainBotToken} onChange={onSettingChange} placeholder="Nhập token bot chính..." />
-        </div>
-        <div className="input-group">
-          <label>Token TxRoom</label>
-          <input type="text" name="txRoomToken" value={settings.txRoomToken} onChange={onSettingChange} placeholder="Nhập token txroom..." />
-        </div>
-        <div className="input-group">
-          <label>Token Bot CSKH</label>
-          <input type="text" name="cskhBotToken" value={settings.cskhBotToken} onChange={onSettingChange} placeholder="Nhập token bot cskh..." />
         </div>
         <div className="input-group">
           <label>ID Nhóm Hệ Thống</label>
@@ -42,6 +31,10 @@ function Settings({ settings, onSettingChange, onSaveSettings }) {
           <label style={{ marginBottom: 0 }}>Bật âm thanh thông báo (Lỗi)</label>
         </div>
         <button onClick={onSaveSettings} style={{ marginTop: '10px', width: 'auto', padding: '10px 30px' }}>Lưu Cài Đặt</button>
+
+        <div style={{ marginTop: '30px', borderTop: '1px solid #eee', paddingTop: '20px' }}>
+          <UpdateChecker />
+        </div>
       </div>
     </>
   );
