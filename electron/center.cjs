@@ -207,6 +207,27 @@ ipcHandle('delete-admin', async (event, id) => {
   return { success: true };
 });
 
+// Cập nhật thông tin admin (role, status, password)
+ipcHandle('update-admin', async (event, payload) => {
+  const { id } = payload || {};
+  if (!id) return { success: false, message: 'ID không hợp lệ.' };
+  const user = await User.findById(id);
+  if (!user) return { success: false, message: 'Không tìm thấy tài khoản.' };
+
+  // Không cho phép thay đổi tài khoản admin center gốc
+  if (user.username === 'admincenter') return { success: false, message: 'Không thể chỉnh sửa tài khoản gốc.' };
+
+  if (typeof payload.role === 'string') user.role = payload.role;
+  if (typeof payload.status === 'string') user.status = payload.status;
+  if (payload.password) {
+    user.password = payload.password;
+    user.isFirstLogin = false;
+  }
+
+  await user.save();
+  return { success: true };
+});
+
 // Quản lý License cho người mua
 ipcHandle('get-licenses', async () => {
   try {
@@ -459,7 +480,18 @@ app.whenReady().then(async () => {
     }
   }, 2000);
 
-  if (!isDev) autoUpdater.checkForUpdatesAndNotify();
+  // Allow auto-updater to run in dev when explicitly enabled via env var
+  const enableUpdaterInDev = process.env.ENABLE_UPDATER_IN_DEV === '1' || process.env.FORCE_UPDATER_IN_DEV === '1';
+  if (!isDev || enableUpdaterInDev) {
+    try {
+      autoUpdater.checkForUpdatesAndNotify();
+      console.log('[Updater] autoUpdater.checkForUpdatesAndNotify enabled', { isDev, enableUpdaterInDev });
+    } catch (e) {
+      console.warn('[Updater] checkForUpdatesAndNotify failed:', e && e.message ? e.message : e);
+    }
+  } else {
+    console.log('[Updater] auto-updates disabled in dev (set ENABLE_UPDATER_IN_DEV=1 to enable)');
+  }
 });
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

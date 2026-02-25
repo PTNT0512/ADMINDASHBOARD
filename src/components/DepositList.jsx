@@ -3,22 +3,22 @@ import React, { useState, useEffect } from 'react';
 function DepositList() {
   const [deposits, setDeposits] = useState([]);
   const [filter, setFilter] = useState('active'); // 'active' | 'error'
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const fetchDeposits = async () => {
+  const fetchDeposits = async (p = 1) => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
-      const result = await ipcRenderer.invoke('get-deposits');
-      if (result.success) setDeposits(result.data);
+      const result = await ipcRenderer.invoke('get-deposits', { page: p, limit: 10, filterType: filter });
+      if (result.success) {
+        setDeposits(result.data);
+        setPage(p);
+        setTotalPages(result.totalPages || 1);
+      }
     }
   };
 
-  useEffect(() => { fetchDeposits(); }, []);
-
-  const filteredDeposits = deposits.filter(item => {
-    if (filter === 'active') return item.status !== 2; // Hiện Chờ duyệt (0) và Thành công (1)
-    if (filter === 'error') return item.status === 2;  // Hiện Đã hủy (2)
-    return true;
-  });
+  useEffect(() => { fetchDeposits(1); }, [filter]);
 
   return (
     <>
@@ -70,7 +70,7 @@ function DepositList() {
             </tr>
           </thead>
           <tbody>
-            {filteredDeposits.map(item => (
+            {deposits.map(item => (
               <tr key={item.id}>
                 <td>{new Date(item.date).toLocaleString('vi-VN')}</td>
                 <td>{item.userId}</td>
@@ -88,6 +88,24 @@ function DepositList() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
+        <button 
+          onClick={() => fetchDeposits(page - 1)} 
+          disabled={page <= 1}
+          style={{ padding: '5px 15px', cursor: page <= 1 ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Trước
+        </button>
+        <span style={{ fontWeight: 'bold' }}>Trang {page} / {totalPages}</span>
+        <button 
+          onClick={() => fetchDeposits(page + 1)} 
+          disabled={page >= totalPages}
+          style={{ padding: '5px 15px', cursor: page >= totalPages ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Sau
+        </button>
       </div>
     </>
   );

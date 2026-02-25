@@ -7,7 +7,7 @@ module.exports = {
   },
   files: [
     "dist/**/*",
-    "electron.js",
+    "electron/**/*",
     "src/**/*",
     "!**/.env*"
   ],
@@ -16,6 +16,6 @@ module.exports = {
     icon: "public/icon_dashboard.ico"
   },
   extraMetadata: {
-    main: "electron.js"
+    main: "electron/dashboard.cjs"
   }
 };

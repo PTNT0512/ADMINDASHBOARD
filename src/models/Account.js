@@ -22,4 +22,4 @@ const accountSchema = new mongoose.Schema({
   token: { type: String, default: "" } // Token API
 });
 
-module.exports = mongoose.model('Account', accountSchema);
+module.exports = mongoose.models.Account || mongoose.model('Account', accountSchema);

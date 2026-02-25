@@ -17,6 +17,7 @@ import BotManager from './BotManager';
 import GameServerPanel from './GameServerPanel';
 import DepositList from './DepositList';
 import WithdrawList from './WithdrawList';
+import GameHistory from './GameHistory';
 import DailyCheckin from './DailyCheckin';
 import Missions from './Missions';
 import LuckyWheel from './LuckyWheel';
@@ -32,6 +33,7 @@ import RevenueChart from './RevenueChart.jsx';
 import TaiXiuCao from './TaiXiuCao.jsx';
 import TaiXiuNan from './TaiXiuNan.jsx';
 import ServerManager from './ServerManager.jsx';
+import { getSocket } from './socket';
 
 // Component hỗ trợ hiệu ứng nhảy số
 const CountUp = ({ end, duration = 1000, suffix = "" }) => {
@@ -264,6 +266,39 @@ function Dashboard({ onLogout }) {
     loadSettings();
   }, [invoke]);
 
+  // Lắng nghe sự kiện nạp tiền ZaloPay thành công từ Server
+  useEffect(() => {
+    const socket = getSocket();
+    
+    // Log khi kết nối socket thành công để đảm bảo Dashboard đang online
+    socket.on('connect', () => console.log('✅ [Dashboard] Socket connected:', socket.id));
+
+    const handleZaloPaySuccess = async (data) => {
+      console.log('💰 [Dashboard] ZaloPay Deposit Success:', data);
+      showToast(`✅ Nạp ZaloPay thành công: ${data.amount.toLocaleString()}đ`, 'success');
+      
+      // Gửi yêu cầu cho Main Process để Bot thông báo
+      const content = `✅ <b>NẠP TIỀN ZALOPAY THÀNH CÔNG</b>\n\n` +
+                      `💰 Số tiền: <b>${parseInt(data.amount).toLocaleString()} ₫</b>\n` +
+                      `📝 Mã GD: <code>${data.transId}</code>\n` +
+                      `💵 Số dư mới: <b>${parseInt(data.balance).toLocaleString()} ₫</b>\n\n` +
+                      `Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ!`;
+      
+      const res = await invoke('send-notification', { userId: data.userId, content });
+      if (!res.success) {
+          console.error('❌ [Dashboard] Bot notify failed:', res.message);
+          showToast(`⚠️ Lỗi gửi tin nhắn Bot: ${res.message}`, 'warning');
+      } else {
+          console.log('✅ [Dashboard] Bot notified user successfully');
+      }
+    };
+
+    socket.on('zalopay_deposit_success', handleZaloPaySuccess);
+    return () => {
+      socket.off('zalopay_deposit_success', handleZaloPaySuccess);
+    };
+  }, [invoke, showToast]);
+
   // Hàm tải danh sách user
   const fetchUsers = useCallback(async () => {
     const result = await invoke('get-users');
@@ -349,6 +384,7 @@ function Dashboard({ onLogout }) {
         {/* Nạp Rút */}
         {activeTab === 'deposits' && <DepositList />}
         {activeTab === 'withdraws' && <WithdrawList />}
+        {activeTab === 'game_history' && <GameHistory />}
 
         {/* Ngân hàng */}
         {activeTab === 'bank_auto' && <BankAuto invoke={invoke} showToast={showToast} />}

@@ -7,7 +7,7 @@ module.exports = {
   },
   files: [
     "dist/**/*",
-    "src/electron.js",
+    "electron/center.cjs",
     "!**/.env*"
   ],
   win: {
@@ -15,6 +15,6 @@ module.exports = {
     icon: "public/icon_center.ico"
   },
   extraMetadata: {
-    main: "src/electron.js"
+    main: "electron/center.cjs"
   }
 };

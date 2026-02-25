@@ -368,6 +368,7 @@ function setupBotListeners() {
             }
 
             account.balance -= amount;
+            account.totalBet = (account.totalBet || 0) + amount; // Cộng dồn tổng cược
             await account.save();
 
             const userBets = state.bets[choice].users;
@@ -506,17 +507,34 @@ function startGameLoop() {
                         const payoutPromises = Object.keys(allBets).map(async (userId) => {
                             const betInfo = allBets[userId];
                             const numericUserId = parseInt(userId);
+                            let winAmount = 0;
 
                             // Trả thưởng cho người thắng
                             if (betInfo.choice === result && !betInfo.isFake) {
                                 const grossWin = betInfo.amount * 2;
                                 // ... (logic tính phí, trừ phế...)
                                 const netWin = grossWin; // Giả sử thắng x2
+                                winAmount = netWin;
                                 await Account.findOneAndUpdate({ userId: numericUserId }, { $inc: { balance: netWin } });
                             }
 
                             // Bỏ qua bot ảo cho các logic sau
                             if (betInfo.isFake) return;
+
+                            // Lưu lịch sử cược để thống kê lợi nhuận
+                            try {
+                                await MiniGameHistory.create({
+                                    game: config.roomType, // 'tx', 'md5', 'khongminh'...
+                                    userId: numericUserId,
+                                    username: betInfo.username,
+                                    betType: betInfo.choice, // 'Tai' hoặc 'Xiu'
+                                    betAmount: betInfo.amount,
+                                    winAmount: winAmount,
+                                    date: new Date()
+                                });
+                            } catch (err) {
+                                console.error(`[History Error] User ${userId}: ${err.message}`);
+                            }
 
                             // Cộng điểm VIP cho tất cả người chơi thật
                             const vipPointsToAdd = Math.floor(betInfo.amount * VIP_POINT_RATE);

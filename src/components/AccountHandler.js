@@ -33,7 +33,8 @@ const accountMenuKeyboard = {
         ],
         [
             { text: '💎 Đổi điểm VIP', callback_data: 'exchange_vip_points' },
-            { text: '📬 Hòm Quà', callback_data: 'mailbox' }
+            { text: '📬 Hòm Quà', callback_data: 'mailbox' },
+            { text: '🔐 Két Sắt', callback_data: 'account_safe' }
         ]
     ]
 };

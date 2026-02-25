@@ -137,6 +137,7 @@ function Sidebar({
       >
         <SubMenuItem id="deposits" label="Lịch sử Nạp" />
         <SubMenuItem id="withdraws" label="Lịch sử Rút" />
+        <SubMenuItem id="game_history" label="Lịch sử Cược" />
       </MenuGroup>
 
       <MenuGroup 

@@ -11,9 +11,12 @@ import './index.css'
 import './theme/page-icons.js'
 import './theme/numeric-enhancer.js'
 import App from './App.jsx'
+import { ToastProvider } from './components/ToastContext'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <App />
+    <ToastProvider>
+      <App />
+    </ToastProvider>
   </StrictMode>,
 )

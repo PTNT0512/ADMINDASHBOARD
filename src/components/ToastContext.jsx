@@ -4,15 +4,76 @@ const ToastContext = createContext();
 
 export const useToast = () => useContext(ToastContext);
 
+// Danh sách các kênh API chỉ chạy qua HTTP (Server phụ), không qua Electron IPC
+// Giúp tránh lỗi "No handler registered" trong console khi chạy trên Electron
+const HTTP_ONLY_CHANNELS = [
+  'get-zalopay-status',
+  'start-zalopay-worker',
+  'stop-zalopay-worker'
+];
+
 // Đây là hook IPC. Nó là nơi DUY NHẤT được phép truy cập `window.require`.
 export const useIpc = () => {
   const invoke = useCallback(async (channel, ...args) => {
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      return await ipcRenderer.invoke(channel, ...args);
+    let ipc = null;
+
+    // Chỉ tìm kiếm IPC nếu channel không nằm trong danh sách HTTP-only
+    if (!HTTP_ONLY_CHANNELS.includes(channel)) {
+      // 1. Kiểm tra nếu được expose trực tiếp (contextBridge)
+      if (window.ipcRenderer) {
+        ipc = window.ipcRenderer;
+      } 
+      // 2. Kiểm tra nếu expose qua namespace 'electron'
+      else if (window.electron && window.electron.ipcRenderer) {
+        ipc = window.electron.ipcRenderer;
+      }
+      // 3. Kiểm tra nodeIntegration (window.require)
+      else if (window.require) {
+        try {
+          const { ipcRenderer } = window.require('electron');
+          ipc = ipcRenderer;
+        } catch (e) {}
+      }
     }
-    console.warn(`IPC channel "${channel}" call ignored: IPC not available.`);
-    return Promise.resolve({ success: false, message: 'IPC not available' });
+
+    if (ipc) {
+      try {
+        return await ipc.invoke(channel, ...args);
+      } catch (error) {
+        // Nếu lỗi là do chưa đăng ký handler trong Electron Main, fallback sang HTTP
+        if (error.message && error.message.includes('No handler registered')) {
+          console.warn(`[useIpc] IPC Handler missing for '${channel}', falling back to HTTP API.`);
+        } else {
+          throw error; // Các lỗi khác thì ném ra bình thường
+        }
+      }
+    }
+
+    // --- FALLBACK TO HTTP API FOR BROWSER ---
+    try {
+      // Địa chỉ của Game Admin Server, cần đảm bảo server này đang chạy
+      const API_URL = 'http://localhost:4001'; 
+      const endpoint = `/api/${channel}`;
+      const body = args[0] || {}; // Giả định payload là argument đầu tiên
+
+      const method = channel.startsWith('get-') ? 'GET' : 'POST';
+
+      const response = await fetch(API_URL + endpoint, {
+        method: method,
+        headers: method === 'POST' ? { 'Content-Type': 'application/json' } : {},
+        body: method === 'POST' ? JSON.stringify(body) : undefined,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: `Lỗi HTTP: ${response.status}` }));
+        return { success: false, message: errorData.message || 'Lỗi mạng' };
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error(`API call for "${channel}" failed:`, error);
+      return { success: false, message: 'Không thể kết nối tới server API.' };
+    }
   }, []);
 
   return { invoke };

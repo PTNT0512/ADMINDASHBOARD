@@ -6,8 +6,11 @@ import LicenseActivation from './components/LicenseActivation';
 import CenterDashboard from './components/CenterDashboard';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import { ToastProvider, useToast, useIpc } from './components/ToastContext';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Booms from '../webgame/game/booms';
 
-function App() {
+
+function AdminPanel() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userRole, setUserRole] = useState('');
   const [isLicensed, setIsLicensed] = useState(false);
@@ -38,7 +41,7 @@ function App() {
         setIsLicensed(result.activated);
       }
     } else {
-      setIsLicensed(true); // Center mode không cần check
+      setIsLicensed(true); // Center mode (superadmin) không cần check license
     }
     setIsCheckingStatus(false); // Hoàn tất kiểm tra
   };
@@ -114,7 +117,7 @@ function App() {
 
   // 2. Đã đăng nhập, nhưng đang kiểm tra bản quyền -> Hiện màn hình chờ
   if (isCheckingStatus) {
-    return <div className="mil-login-overlay"><div className="mil-status-container"><div className="mil-blink">VERIFYING SYSTEM LICENSE...</div></div></div>;
+    return <div className="mil-login-overlay"><div className="mil-status-container"><div className="mil-blink">VERIFYING SYSTEM...</div></div></div>;
   }
 
   return (
@@ -130,11 +133,11 @@ function App() {
         />
       )}
 
-      {/* 3. Dựa vào trạng thái bản quyền và vai trò để hiển thị giao diện phù hợp */}
-      {import.meta.env.VITE_APP_MODE === 'dashboard' && !isLicensed ? (
-        <LicenseActivation onActivationSuccess={handleActivationSuccess} />
-      ) : userRole === 'superadmin' ? (
+      {/* 3. Logic hiển thị giao diện chính */}
+      {userRole === 'superadmin' ? (
         <CenterDashboard onLogout={handleLogout} />
+      ) : !isLicensed ? (
+        <LicenseActivation onActivationSuccess={handleActivationSuccess} />
       ) : (
         <Dashboard onLogout={handleLogout} />
       )}
@@ -142,10 +145,4 @@ function App() {
   );
 }
 
-export default function AppWrapper() {
-  return (
-    <ToastProvider>
-      <App />
-    </ToastProvider>
-  );
-}
+export default AdminPanel;

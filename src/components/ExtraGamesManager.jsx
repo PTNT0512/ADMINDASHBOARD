@@ -1,35 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useIpc } from './ToastContext';
 
 const ExtraGamesManager = () => {
     const [games, setGames] = useState([]);
     const [loading, setLoading] = useState({});
     const [logs, setLogs] = useState({});
-
-    // Hàm an toàn để lấy ipcRenderer trong môi trường Electron
-    const getIpcRenderer = () => {
-        if (window.ipcRenderer) return window.ipcRenderer;
-        if (window.require) {
-            try {
-                const { ipcRenderer } = window.require('electron');
-                return ipcRenderer;
-            } catch (e) {
-                console.error("Electron IPC not found");
-            }
-        }
-        return null;
-    };
+    const { invoke } = useIpc();
 
     useEffect(() => {
-        const ipcRenderer = getIpcRenderer();
-        if (!ipcRenderer) return;
-
         // 1. Lấy trạng thái ban đầu khi component mount
-        ipcRenderer.invoke('get-extra-games-status').then((result) => {
+        invoke('get-extra-games-status').then((result) => {
             if (Array.isArray(result)) {
                 setGames(result);
                 // Lấy logs ban đầu cho từng game
                 result.forEach(game => {
-                    ipcRenderer.invoke('get-extra-game-logs', game.id).then(res => {
+                    invoke('get-extra-game-logs', game.id).then(res => {
                         if (res.success) {
                             setLogs(prev => ({ ...prev, [game.id]: res.logs }));
                         }
@@ -55,23 +40,26 @@ const ExtraGamesManager = () => {
             });
         };
 
-        ipcRenderer.on('extra-game-status', handleStatusUpdate);
-        ipcRenderer.on('extra-game-log', handleLogUpdate);
+        // Chỉ đăng ký listener nếu đang chạy trong Electron
+        if (window.ipcRenderer || (window.require && window.require('electron'))) {
+            const ipc = window.ipcRenderer || window.require('electron').ipcRenderer;
+            ipc.on('extra-game-status', handleStatusUpdate);
+            ipc.on('extra-game-log', handleLogUpdate);
 
-        // Cleanup listener khi unmount
-        return () => {
-            ipcRenderer.removeListener('extra-game-status', handleStatusUpdate);
-            ipcRenderer.removeListener('extra-game-log', handleLogUpdate);
-        };
+            return () => {
+                ipc.removeListener('extra-game-status', handleStatusUpdate);
+                ipc.removeListener('extra-game-log', handleLogUpdate);
+            };
+        }
     }, []);
 
     const toggleGame = async (gameId) => {
-        const ipcRenderer = getIpcRenderer();
-        if (!ipcRenderer) return;
+        // const ipcRenderer = getIpcRenderer(); // Không cần nữa
+        // if (!ipcRenderer) return;
 
         setLoading(prev => ({ ...prev, [gameId]: true }));
         try {
-            const result = await ipcRenderer.invoke('toggle-extra-game', gameId);
+            const result = await invoke('toggle-extra-game', gameId);
             if (!result.success && result.message) {
                 alert('Lỗi: ' + result.message);
             }

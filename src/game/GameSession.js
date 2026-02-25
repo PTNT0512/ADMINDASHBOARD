@@ -23,9 +23,16 @@ class GameSession {
         try {
             // Lấy phiên gần nhất từ DB để tiếp tục
             const lastGame = await TxGameHistory.findOne({ roomType: this.gameType }).sort({ sessionId: -1 });
-            this.sessionId = lastGame ? lastGame.sessionId + 1 : 1;
             
-            console.log(`[${this.gameType}] 🟢 Khởi động phiên #${this.sessionId}`);
+            // Logic phiên theo năm: YYYY + 0000000001
+            const currentYear = new Date().getFullYear();
+            const baseId = parseInt(`${currentYear}0000000000`);
+
+            // Nếu có phiên cũ và phiên đó thuộc năm nay (lớn hơn baseId) thì tiếp tục, ngược lại reset về baseId
+            this.sessionId = (lastGame && lastGame.sessionId > baseId) ? lastGame.sessionId : baseId;
+            
+            // startBetting sẽ ++sessionId nên phiên đầu tiên sẽ là baseId + 1 (VD: 20240000000001)
+            console.log(`[${this.gameType}] 🟢 Khởi động phiên tiếp theo #${this.sessionId + 1}`);
             this.startBetting();
             
             // Bắt đầu vòng lặp game (1 giây 1 lần)

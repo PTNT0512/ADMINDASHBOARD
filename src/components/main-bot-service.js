@@ -1,10 +1,16 @@
 const TelegramBot = require('node-telegram-bot-api');
 const crypto = require('crypto');
+const axios = require('axios'); // Thêm thư viện axios
 const Account = require('../models/Account.js');
 const Deposit = require('../models/Deposit.js');
 const Withdraw = require('../models/Withdraw.js');
 const BankAuto = require('../models/BankAuto.js');
 const Setting = require('../models/Setting.js');
+const EWallet = require('../models/EWallet.js'); // Thêm model EWallet
+const MiniGameHistory = require('../models/MiniGameHistory.js');
+const Giftcode = require('../models/Giftcode.js');
+const Transaction = require('../models/Transaction.js');
+const { processCardDeposit } = require('./CardChargingService');
 
 // Import các bộ xử lý tính năng riêng biệt
 const GameListHandler = require('./GameListHandler');
@@ -15,6 +21,7 @@ const EventHandler = require('./EventHandler');
 const RankingHandler = require('./RankingHandler');
 const ReferralHandler = require('./ReferralHandler');
 const CommissionHandler = require('./CommissionHandler');
+const SafeHandler = require('./SafeHandler'); // Import SafeHandler
 
 let mainBotInstance = null;
 let isProcessing = false; // Lock để ngăn chặn các cuộc gọi đồng thời
@@ -157,7 +164,14 @@ async function startMainBot(botConfig) {
             const refId = match[2] ? parseInt(match[2]) : null; // Lấy ID người giới thiệu từ link start
 
             try {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+                }
+
                 let account = await Account.findOne({ userId });
+                if (account && account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
+
                 if (!account) {
                     const token = crypto.randomBytes(32).toString('hex');
                     const newAccountData = { userId, balance: 0, status: 1, token };
@@ -193,8 +207,13 @@ async function startMainBot(botConfig) {
         bot.onText(/\/info/, async (msg) => {
             const userId = msg.from.id;
             try {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+                }
                 const account = await Account.findOne({ userId });
                 if (!account) return bot.sendMessage(msg.chat.id, "❌ Bạn chưa đăng ký. Gõ /start.");
+                if (account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
                 bot.sendMessage(msg.chat.id, `📊 <b>THÔNG TIN</b>\n🆔 ID: <code>${account.userId}</code>\n💰 Số dư: <b>${account.balance.toLocaleString()} ₫</b>`, { parse_mode: 'HTML' });
             } catch (err) { console.error(err); }
         });
@@ -212,7 +231,23 @@ async function startMainBot(botConfig) {
             }
             depositCooldowns[userId] = now;
 
-            if (amount < 10000) return bot.sendMessage(msg.chat.id, "❌ Tối thiểu 10,000 ₫");
+            const settings = await Setting.findOne({});
+            if (settings && settings.maintenanceSystem) {
+                return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+            }
+            if (settings && settings.maintenanceDeposit) {
+                return bot.sendMessage(msg.chat.id, '❌ Hệ thống nạp tiền đang bảo trì. Vui lòng quay lại sau.');
+            }
+
+            const account = await Account.findOne({ userId });
+            if (account && account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
+
+            const minDeposit = settings?.minDeposit || 10000;
+            const maxDeposit = settings?.maxDeposit || 500000000;
+
+            if (amount < minDeposit) return bot.sendMessage(msg.chat.id, `❌ Tối thiểu ${minDeposit.toLocaleString()} ₫`);
+            if (amount > maxDeposit) return bot.sendMessage(msg.chat.id, `❌ Tối đa ${maxDeposit.toLocaleString()} ₫`);
+
             try {
                 await Deposit.create({ userId: msg.from.id, amount, method: 'Bot', status: 0 });
                 bot.sendMessage(msg.chat.id, `✅ Đã gửi yêu cầu nạp <b>${amount.toLocaleString()} ₫</b>.`, { parse_mode: 'HTML' });
@@ -224,7 +259,34 @@ async function startMainBot(botConfig) {
             const amount = parseInt(match[1]);
             const userId = msg.from.id;
             try {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+                }
+                if (settings && settings.maintenanceWithdraw) {
+                    return bot.sendMessage(msg.chat.id, '❌ Hệ thống rút tiền đang bảo trì. Vui lòng quay lại sau.');
+                }
+
+                const maxWithdrawals = settings?.maxWithdrawalsPerDay || 3;
+                const startOfDay = new Date();
+                startOfDay.setHours(0, 0, 0, 0);
+                const withdrawalCount = await Withdraw.countDocuments({
+                    userId,
+                    createdAt: { $gte: startOfDay }
+                });
+
+                if (withdrawalCount >= maxWithdrawals) return bot.sendMessage(msg.chat.id, `❌ Bạn đã đạt giới hạn rút tiền trong ngày (${maxWithdrawals} lần).`);
+
                 const account = await Account.findOne({ userId });
+                if (account && account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
+                
+                // Kiểm tra vòng cược
+                const wageringReq = settings?.withdrawWageringReq || 1;
+                const requiredBet = (account.totalDeposit || 0) * wageringReq;
+                if ((account.totalBet || 0) < requiredBet) {
+                     return bot.sendMessage(msg.chat.id, `❌ <b>CHƯA ĐỦ VÒNG CƯỢC</b>\n\n- Yêu cầu cược: <b>${requiredBet.toLocaleString()}đ</b>\n- Đã cược: <b>${(account.totalBet || 0).toLocaleString()}đ</b>`, { parse_mode: 'HTML' });
+                }
+
                 if (!account || account.balance < amount) return bot.sendMessage(msg.chat.id, "❌ Số dư không đủ.");
                 await Withdraw.create({ userId, amount, bankName: match[2], accountNumber: match[3], accountName: match[4], status: 0 });
                 account.balance -= amount;
@@ -233,14 +295,412 @@ async function startMainBot(botConfig) {
             } catch (err) { console.error(err); }
         });
 
+        // Lệnh /gift [code]
+        bot.onText(/\/gift (.+)/, async (msg, match) => {
+            const userId = msg.from.id;
+            const code = match[1].trim();
+            
+            // Chống spam
+            const lastTime = depositCooldowns[userId] || 0;
+            const now = Date.now();
+            if (now - lastTime < 3000) {
+                return bot.sendMessage(msg.chat.id, `⏳ Vui lòng thao tác chậm lại.`);
+            }
+            depositCooldowns[userId] = now;
+
+            try {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+                }
+
+                const account = await Account.findOne({ userId });
+                if (account && account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
+                if (!account) return bot.sendMessage(msg.chat.id, '❌ Bạn chưa có tài khoản. Gõ /start để tạo.');
+
+                // Tìm và cập nhật Giftcode (Atomic check & update)
+                const giftcode = await Giftcode.findOneAndUpdate(
+                    { 
+                        code: code, 
+                        status: 1,
+                        $or: [
+                            { usageLimit: { $lte: 0 } }, // Không giới hạn
+                            { $expr: { $lt: ["$usedCount", "$usageLimit"] } } // Còn lượt
+                        ],
+                        usedBy: { $ne: String(userId) } // Chưa dùng
+                    },
+                    { 
+                        $inc: { usedCount: 1 },
+                        $push: { usedBy: String(userId) }
+                    },
+                    { new: true }
+                );
+
+                if (!giftcode) {
+                    return bot.sendMessage(msg.chat.id, '❌ Mã Code không tồn tại, đã hết hạn, hết lượt hoặc bạn đã sử dụng.');
+                }
+
+                // Cộng tiền
+                const amount = giftcode.amount;
+                const oldBalance = account.balance;
+                account.balance += amount;
+                await account.save();
+
+                // Tự động khóa nếu hết lượt (Double check)
+                if (giftcode.usageLimit > 0 && giftcode.usedCount >= giftcode.usageLimit) {
+                    await Giftcode.findByIdAndUpdate(giftcode._id, { status: 0 });
+                }
+
+                // Lưu lịch sử biến động
+                await Transaction.create({
+                    userId,
+                    amount,
+                    action: 'add',
+                    oldBalance,
+                    newBalance: account.balance,
+                    description: `Giftcode: ${code}`
+                });
+
+                await bot.sendMessage(msg.chat.id, `✅ <b>NHẬP CODE THÀNH CÔNG</b>\n\n🎁 Phần thưởng: <b>${amount.toLocaleString()} VNĐ</b>\n💰 Số dư mới: <b>${account.balance.toLocaleString()} VNĐ</b>`, { parse_mode: 'HTML' });
+
+            } catch (err) {
+                console.error('[Giftcode Error]', err);
+                bot.sendMessage(msg.chat.id, '❌ Có lỗi xảy ra khi nhập Code.');
+            }
+        });
+
+        // Lệnh /muaGiftCode [số lượng] [số tiền]
+        bot.onText(/\/muaGiftCode (\d+) (\d+)/, async (msg, match) => {
+            const userId = msg.from.id;
+            const quantity = parseInt(match[1]);
+            const amountPerCode = parseInt(match[2]);
+
+            // Chống spam
+            const lastTime = depositCooldowns[userId] || 0;
+            const now = Date.now();
+            if (now - lastTime < 3000) {
+                return bot.sendMessage(msg.chat.id, `⏳ Vui lòng thao tác chậm lại.`);
+            }
+            depositCooldowns[userId] = now;
+
+            if (quantity <= 0 || amountPerCode <= 0) {
+                return bot.sendMessage(userId, '❌ Số lượng và số tiền phải lớn hơn 0.');
+            }
+            
+            if (quantity > 50) {
+                 return bot.sendMessage(userId, '❌ Chỉ được mua tối đa 50 Giftcode mỗi lần.');
+            }
+
+            try {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(userId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+                }
+
+                const account = await Account.findOne({ userId });
+                if (account && account.status === 0) return bot.sendMessage(userId, '🚫 Tài khoản của bạn đã bị khóa.');
+                if (!account) return bot.sendMessage(userId, '❌ Bạn chưa có tài khoản. Gõ /start để tạo.');
+
+                const totalValue = quantity * amountPerCode;
+                const feePercent = 15; // Phí 15%
+                const fee = Math.ceil(totalValue * feePercent / 100);
+                const totalCost = totalValue + fee;
+
+                if (account.balance < totalCost) {
+                    return bot.sendMessage(userId, `❌ <b>SỐ DƯ KHÔNG ĐỦ</b>\n\n💰 Tổng giá trị: ${totalValue.toLocaleString()}đ\n💸 Phí mua (15%): ${fee.toLocaleString()}đ\n💵 Tổng thanh toán: <b>${totalCost.toLocaleString()}đ</b>\n💰 Số dư hiện tại: ${account.balance.toLocaleString()}đ`, { parse_mode: 'HTML' });
+                }
+
+                // Trừ tiền (Sử dụng findOneAndUpdate để đảm bảo an toàn)
+                const updatedAccount = await Account.findOneAndUpdate(
+                    { userId: userId, balance: { $gte: totalCost } },
+                    { $inc: { balance: -totalCost } },
+                    { new: true }
+                );
+
+                if (!updatedAccount) {
+                     return bot.sendMessage(userId, '❌ Giao dịch thất bại. Số dư không đủ hoặc có lỗi xảy ra.');
+                }
+
+                // Tạo Giftcode hàng loạt
+                const codes = [];
+                const bulkOps = [];
+                
+                for (let i = 0; i < quantity; i++) {
+                    const randomStr = Math.random().toString(36).substring(2, 10).toUpperCase();
+                    const code = `GIFT-${randomStr}`;
+                    codes.push(code);
+                    
+                    bulkOps.push({
+                        code: code,
+                        amount: amountPerCode,
+                        usageLimit: 1,
+                        usedCount: 0,
+                        status: 1,
+                        date: new Date()
+                    });
+                }
+                
+                await Giftcode.insertMany(bulkOps);
+
+                // Lưu lịch sử giao dịch
+                await Transaction.create({
+                    userId,
+                    amount: totalCost,
+                    action: 'subtract',
+                    oldBalance: updatedAccount.balance + totalCost,
+                    newBalance: updatedAccount.balance,
+                    description: `Mua ${quantity} Giftcode (${amountPerCode.toLocaleString()}đ/code)`
+                });
+
+                let msgContent = `✅ <b>MUA GIFTCODE THÀNH CÔNG</b>\n\n`;
+                msgContent += `📦 Số lượng: <b>${quantity}</b>\n`;
+                msgContent += `💰 Trị giá: <b>${amountPerCode.toLocaleString()}đ</b>/code\n`;
+                msgContent += `💸 Phí (15%): <b>${fee.toLocaleString()}đ</b>\n`;
+                msgContent += `💵 Tổng trừ: <b>${totalCost.toLocaleString()}đ</b>\n\n`;
+                msgContent += `👇 <b>Danh sách mã của bạn:</b>\n`;
+                
+                codes.forEach(c => {
+                    msgContent += `<code>${c}</code>\n`;
+                });
+
+                await bot.sendMessage(userId, msgContent, { parse_mode: 'HTML' });
+
+            } catch (err) {
+                console.error('[Buy Giftcode Error]', err);
+                bot.sendMessage(userId, '❌ Có lỗi xảy ra khi mua Giftcode.');
+            }
+        });
+
+        // --- GAME CHẴN LẺ TELEGRAM (Timeticks) ---
+        // Cú pháp: C [tiền] hoặc L [tiền]
+        bot.onText(/^([CcLl])\s+(\d+)$/, async (msg, match) => {
+            const userId = msg.from.id;
+            const chatId = msg.chat.id;
+            const type = match[1].toUpperCase(); // C hoặc L
+            const amount = parseInt(match[2]);
+            const username = msg.from.first_name || 'Người chơi';
+
+            await processEvenOddBet(bot, chatId, userId, username, type, amount, msg.message_id);
+        });
+
+        // --- GAME TÀI XỈU TELEGRAM (Timeticks) ---
+        // Cú pháp: T [tiền] hoặc X [tiền]
+        bot.onText(/^([TtXx])\s+(\d+)$/, async (msg, match) => {
+            const userId = msg.from.id;
+            const chatId = msg.chat.id;
+            const type = match[1].toUpperCase(); // T hoặc X
+            const amount = parseInt(match[2]);
+            const username = msg.from.first_name || 'Người chơi';
+
+            await processTaiXiuBet(bot, chatId, userId, username, type, amount, msg.message_id);
+        });
+
+        // --- GAME XÚC XẮC TELEGRAM (Dice) ---
+        // Cú pháp: XXC, XXL, XXT, XXX, D1-D6 [tiền]
+        bot.onText(/^(XXC|XXL|XXT|XXX|D[1-6])\s+(\d+)$/i, async (msg, match) => {
+            const userId = msg.from.id;
+            const chatId = msg.chat.id;
+            const type = match[1].toUpperCase();
+            const amount = parseInt(match[2]);
+            const username = msg.from.first_name || 'Người chơi';
+
+            await processDiceBet(bot, chatId, userId, username, type, amount, msg.message_id);
+        });
+
         // --- Xử lý hội thoại từng bước ---
         bot.on('message', async (msg) => {
             const userId = msg.from.id;
             const state = userStates[userId];
 
+            // Check Ban
+            const accCheck = await Account.findOne({ userId });
+            if (accCheck && accCheck.status === 0) {
+                // Chỉ phản hồi nếu không phải là lệnh (để tránh double reply với onText)
+                if (!msg.text || !msg.text.startsWith('/')) return bot.sendMessage(userId, '🚫 Tài khoản của bạn đã bị khóa.');
+                return;
+            }
+
+            // --- GAME SLOT TELEGRAM (User gửi emoji 🎰) ---
+            if (msg.dice && msg.dice.emoji === '🎰') {
+                const chatId = msg.chat.id;
+                const username = msg.from.first_name || 'Người chơi';
+                
+
+                try {
+                    // 1. Kiểm tra bảo trì hệ thống
+                    const settings = await Setting.findOne({});
+                    if (settings && settings.maintenanceSystem) {
+                        return bot.sendMessage(chatId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+                    }
+
+                    const amount = settings?.minBetSlot || 1000; // Phí chơi lấy từ cài đặt
+
+                    // 2. Kiểm tra số dư
+                    const account = await Account.findOne({ userId });
+                    if (!account || account.balance < amount) {
+                        return bot.sendMessage(chatId, `❌ Số dư không đủ (Cần ${amount.toLocaleString()}đ).`, { reply_to_message_id: msg.message_id });
+                    }
+
+                    // 3. Trừ tiền & Ghi nhận cược
+                    account.balance -= amount;
+                    account.totalBet = (account.totalBet || 0) + amount;
+                    await account.save();
+
+                    // 4. Xử lý kết quả (Telegram Dice Value: 1-64)
+                    const value = msg.dice.value;
+                    let winAmount = 0;
+                    let resultText = '';
+                    let isWin = false;
+
+                    // Mapping giá trị thắng của Slot Machine Telegram
+                    if (value === 1) { // 3 Bar
+                        winAmount = 15000;
+                        resultText = '🎰 <b>3 BAR - TRÚNG 15.000đ</b>';
+                        isWin = true;
+                    } else if (value === 22) { // 3 Nho (Grapes)
+                        winAmount = 10000;
+                        resultText = '🍇 <b>3 NHO - TRÚNG 10.000đ</b>';
+                        isWin = true;
+                    } else if (value === 43) { // 3 Chanh (Lemon)
+                        winAmount = 10000;
+                        resultText = '🍋 <b>3 CHANH - TRÚNG 10.000đ</b>';
+                        isWin = true;
+                    } else if (value === 64) { // 3 Số 7 (Jackpot)
+                        winAmount = 25000;
+                        resultText = '🔥 <b>JACKPOT 777 - TRÚNG 25.000đ</b>';
+                        isWin = true;
+                    } else {
+                        resultText = '💔 <b>CHÚC MAY MẮN LẦN SAU</b>';
+                    }
+
+                    if (isWin) {
+                        account.balance += winAmount;
+                        await account.save();
+                        resultText = `🎉 ${resultText}`;
+                    }
+
+                    // Lưu lịch sử
+                    try {
+                        await MiniGameHistory.create({
+                            game: 'slot_tele', userId, username,
+                            betType: 'SPIN', betAmount: amount, winAmount,
+                            date: new Date()
+                        });
+                    } catch (e) {
+                        console.error('Lỗi lưu lịch sử Slot:', e);
+                    }
+
+                    // 5. Phản hồi
+                    const responseMsg = `🎰 <b>SLOT TELEGRAM</b> 🎰\n` +
+                        `➖➖➖➖➖➖➖➖➖➖\n` +
+                        `👤 Người chơi: <b>${username}</b>\n` +
+                        `💰 Phí chơi: <b>${amount.toLocaleString()}đ</b>\n` +
+                        `🎰 Kết quả: <b>${value}</b>\n` +
+                        `➖➖➖➖➖➖➖➖➖➖\n` +
+                        `${resultText}\n` +
+                        `💰 Số dư: <b>${account.balance.toLocaleString()}đ</b>`;
+
+                    // Delay 2s để đợi animation quay xong
+                    await new Promise(r => setTimeout(r, 2000));
+                    
+                    await bot.sendMessage(chatId, responseMsg, { 
+                        parse_mode: 'HTML', 
+                        reply_to_message_id: msg.message_id 
+                    });
+
+                } catch (err) {
+                    console.error('[Slot Game Error]', err);
+                }
+                return;
+            }
+
+            // Kiểm tra bảo trì hệ thống (trừ các lệnh bắt đầu bằng / vì đã xử lý ở onText)
+            if (msg.text && !msg.text.startsWith('/')) {
+                const settings = await Setting.findOne({});
+                if (settings && settings.maintenanceSystem) {
+                    return bot.sendMessage(userId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+                }
+            }
+
             // Nếu đang trong quy trình rút tiền, chuyển cho WithdrawHandler xử lý
             if (state && state.type === 'withdraw') {
                 await WithdrawHandler.handleStep(bot, msg, userStates);
+                return;
+            }
+
+            // --- Xử lý quy trình Két sắt (Thêm đoạn này) ---
+            if (state && state.type && state.type.startsWith('safe_')) {
+                await SafeHandler.handleStep(bot, msg, userStates);
+                return;
+            }
+            
+            // --- Xử lý quy trình nạp thẻ cào ---
+            if (state && state.type.startsWith('deposit_card_')) {
+                const text = msg.text.trim();
+                
+                if (state.type === 'deposit_card_amount') {
+                    const amount = parseInt(text.replace(/[^0-9]/g, ''));
+                    if (isNaN(amount) || amount <= 0) {
+                         return bot.sendMessage(userId, '❌ Mệnh giá không hợp lệ. Vui lòng nhập lại (chỉ nhập số).');
+                    }
+                    userStates[userId] = { ...state, amount: amount, type: 'deposit_card_serial' };
+                    await bot.sendMessage(userId, '🔢 Vui lòng nhập <b>Số Serial</b> thẻ:', { parse_mode: 'HTML' });
+                    return;
+                }
+            
+                if (state.type === 'deposit_card_serial') {
+                    userStates[userId] = { ...state, serial: text, type: 'deposit_card_code' };
+                    await bot.sendMessage(userId, '🔢 Vui lòng nhập <b>Mã Thẻ (Mã nạp)</b>:', { parse_mode: 'HTML' });
+                    return;
+                }
+            
+                if (state.type === 'deposit_card_code') {
+                    const code = text;
+                    const { telco, amount, serial } = state;
+                    
+                    // Clear state
+                    delete userStates[userId];
+            
+                    await bot.sendMessage(userId, '⏳ Đang xử lý thẻ nạp, vui lòng đợi...');
+            
+                    const result = await processCardDeposit(userId, telco, code, serial, amount);
+                    
+                    if (result.success) {
+                         const status = result.data && result.data.status ? parseInt(result.data.status) : 99;
+                         
+                         if (status === 1) {
+                              await bot.sendMessage(userId, `✅ <b>NẠP THẺ THÀNH CÔNG</b>\n\nNhà mạng: ${telco}\nMệnh giá: ${amount.toLocaleString()} VNĐ\n\n💰 Tiền đã được cộng vào tài khoản.`, { parse_mode: 'HTML' });
+                         } else if (status === 2) {
+                              const realAmount = result.data.value || 0;
+                              await bot.sendMessage(userId, `⚠️ <b>NẠP THẺ THÀNH CÔNG (SAI MỆNH GIÁ)</b>\n\nNhà mạng: ${telco}\nMệnh giá gửi: ${amount.toLocaleString()} VNĐ\nThực nhận: ${parseInt(realAmount).toLocaleString()} VNĐ\n\n💰 Đã cộng tiền thực nhận vào tài khoản.`, { parse_mode: 'HTML' });
+                         } else {
+                              await bot.sendMessage(userId, `✅ <b>GỬI YÊU CẦU THÀNH CÔNG</b>\n\nNhà mạng: ${telco}\nMệnh giá: ${amount.toLocaleString()}\nSerial: ${serial}\nMã thẻ: ${code}\n\nHệ thống đang kiểm tra thẻ. Tiền sẽ được cộng sau 1-2 phút nếu thẻ đúng.`, { parse_mode: 'HTML' });
+                         }
+                    } else {
+                         await bot.sendMessage(userId, `❌ <b>LỖI NẠP THẺ</b>\n\n${result.message}`, { parse_mode: 'HTML' });
+                    }
+                    return;
+                }
+            }
+
+            // --- Xử lý nhập số tiền nạp tùy chỉnh ---
+            if (state && (state.type === 'deposit_banking_custom' || state.type === 'deposit_zalopay_custom')) {
+                const text = msg.text.replace(/[^0-9]/g, '');
+                const amount = parseInt(text);
+                
+                if (isNaN(amount) || amount <= 0) {
+                    await bot.sendMessage(userId, '❌ Số tiền không hợp lệ. Vui lòng nhập lại (chỉ nhập số).');
+                    return;
+                }
+
+                const type = state.type;
+                delete userStates[userId]; // Xóa trạng thái
+
+                if (type === 'deposit_banking_custom') {
+                    await provideBankInfo(bot, userId, amount);
+                } else {
+                    await provideZaloPayInfo(bot, userId, amount);
+                }
                 return;
             }
 
@@ -250,8 +710,26 @@ async function startMainBot(botConfig) {
             switch (text) {
                 case '🎮 Danh sách Game': await GameListHandler.show(bot, msg); break;
                 case '👤 Tài Khoản': await AccountHandler.show(bot, msg); break;
-                case '💰 Nạp Tiền': await DepositHandler.show(bot, msg); break;
-                case '💸 Rút Tiền': await WithdrawHandler.start(bot, msg, userStates); break;
+                case '💰 Nạp Tiền': 
+                    {
+                        const settings = await Setting.findOne({});
+                        if (settings && settings.maintenanceDeposit) {
+                            await bot.sendMessage(userId, '❌ Hệ thống nạp tiền đang bảo trì. Vui lòng quay lại sau.');
+                            break;
+                        }
+                        await DepositHandler.show(bot, msg); 
+                    }
+                    break;
+                case '💸 Rút Tiền': 
+                    {
+                        const settings = await Setting.findOne({});
+                        if (settings && settings.maintenanceWithdraw) {
+                            await bot.sendMessage(userId, '❌ Hệ thống rút tiền đang bảo trì. Vui lòng quay lại sau.');
+                            break;
+                        }
+                        await WithdrawHandler.start(bot, msg, userStates); 
+                    }
+                    break;
                 case '🎉 Sự Kiện': await EventHandler.show(bot, msg); break;
                 case '🏆 Bảng Xếp Hạng': await RankingHandler.show(bot, msg); break;
                 case '🤝 Giới Thiệu Bạn Bè': await ReferralHandler.show(bot, msg); break;
@@ -272,10 +750,26 @@ async function startMainBot(botConfig) {
             const msg = callbackQuery.message;
             const data = callbackQuery.data;
 
+            const userId = callbackQuery.from.id;
+            const accCheck = await Account.findOne({ userId });
+            if (accCheck && accCheck.status === 0) {
+                return bot.answerCallbackQuery(callbackQuery.id, { text: '🚫 Tài khoản của bạn đã bị khóa.', show_alert: true });
+            }
+
             bot.answerCallbackQuery(callbackQuery.id);
 
             // --- Xử lý các nút từ menu nạp tiền ---
+            const settings = await Setting.findOne({});
+            if (settings && settings.maintenanceSystem) {
+                return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+            }
+
             if (data.startsWith('deposit_')) {
+                if (settings && settings.maintenanceDeposit) {
+                    return bot.sendMessage(msg.chat.id, '❌ Hệ thống nạp tiền đang bảo trì. Vui lòng quay lại sau.');
+                }
+                const minDeposit = settings && settings.minDeposit ? parseInt(settings.minDeposit) : 20000;
+
                 const method = data.split('_')[1];
                 if (method === 'banking') {
                     const bankingInfoText = `💳 <b>Nạp tiền qua Chuyển khoản Ngân hàng</b>\n\n` +
@@ -287,7 +781,7 @@ async function startMainBot(botConfig) {
                         `✅ Chuyển đúng SỐ TIỀN và NỘI DUNG được cung cấp.\n` +
                         `✅ Mỗi lần nạp cần lấy thông tin MỚI.\n` +
                         `🚫 Không dùng thông tin cũ cho giao dịch sau.\n` +
-                        `💰 Nạp tối thiểu: 20.000đ`;
+                        `💰 Nạp tối thiểu: ${minDeposit.toLocaleString()}đ`;
 
                     const quickAmountKeyboard = {
                         inline_keyboard: [
@@ -297,10 +791,55 @@ async function startMainBot(botConfig) {
                             [{ text: '10M', callback_data: 'napbank_10000000' }, { text: '20M', callback_data: 'napbank_20000000' }, { text: '50M', callback_data: 'napbank_50000000' }]
                         ]
                     };
+
+                    // Nếu minDeposit nhỏ hơn 20k, thêm nút nạp nhanh cho mức min này
+                    if (minDeposit < 20000) {
+                        quickAmountKeyboard.inline_keyboard.unshift([{ text: `${(minDeposit/1000).toLocaleString()}K`, callback_data: `napbank_${minDeposit}` }]);
+                    }
+
+                    // Thêm nút nhập số khác
+                    quickAmountKeyboard.inline_keyboard.push([{ text: '✏️ Nhập số tiền khác', callback_data: 'napbank_custom' }]);
+
                     bot.editMessageText(bankingInfoText, { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: 'HTML', reply_markup: quickAmountKeyboard }).catch(() => {});
-                } else {
+                } 
+                else if (method === 'zalopay') {
+                    // --- LOGIC NẠP ZALOPAY ---
+                    const zaloInfoText = `💳 <b>Nạp tiền qua ZaloPay</b>\n\n` +
+                        `Vui lòng chọn mệnh giá nạp bên dưới để lấy mã QR.\n` +
+                        `💰 Nạp tối thiểu: ${minDeposit.toLocaleString()}đ`;
+
+                    const quickAmountKeyboard = {
+                        inline_keyboard: [
+                            [{ text: '20K', callback_data: 'napzalo_20000' }, { text: '50K', callback_data: 'napzalo_50000' }, { text: '100K', callback_data: 'napzalo_100000' }],
+                            [{ text: '200K', callback_data: 'napzalo_200000' }, { text: '500K', callback_data: 'napzalo_500000' }, { text: '1M', callback_data: 'napzalo_1000000' }],
+                            [{ text: '2M', callback_data: 'napzalo_2000000' }, { text: '5M', callback_data: 'napzalo_5000000' }, { text: '10M', callback_data: 'napzalo_10000000' }]
+                        ]
+                    };
+
+                    // Thêm nút nhập số khác
+                    quickAmountKeyboard.inline_keyboard.push([{ text: '✏️ Nhập số tiền khác', callback_data: 'napzalo_custom' }]);
+
+                    bot.editMessageText(zaloInfoText, { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: 'HTML', reply_markup: quickAmountKeyboard }).catch(() => {});
+                }
+                else if (method === 'card') {
+                    const telcoKeyboard = {
+                        inline_keyboard: [
+                            [{ text: 'VIETTEL', callback_data: 'card_telco_VIETTEL' }],
+                            [{ text: 'VINAPHONE', callback_data: 'card_telco_VINAPHONE' }],
+                            [{ text: 'MOBIFONE', callback_data: 'card_telco_MOBIFONE' }]
+                        ]
+                    };
+                    bot.editMessageText('📱 <b>NẠP THẺ CÀO</b>\n\nVui lòng chọn nhà mạng:', { chat_id: msg.chat.id, message_id: msg.message_id, parse_mode: 'HTML', reply_markup: telcoKeyboard }).catch(() => {});
+                }
+                else {
                     bot.sendMessage(msg.chat.id, `Chức năng nạp tiền qua ${method} đang được phát triển.`);
                 }
+                return;
+            }
+
+            if (data === 'napbank_custom') {
+                userStates[msg.chat.id] = { type: 'deposit_banking_custom' };
+                await bot.sendMessage(msg.chat.id, '✏️ Vui lòng nhập số tiền bạn muốn nạp (Ví dụ: 100000):');
                 return;
             }
 
@@ -310,13 +849,97 @@ async function startMainBot(botConfig) {
                 return;
             }
 
+            if (data === 'napzalo_custom') {
+                userStates[msg.chat.id] = { type: 'deposit_zalopay_custom' };
+                await bot.sendMessage(msg.chat.id, '✏️ Vui lòng nhập số tiền bạn muốn nạp qua ZaloPay (Ví dụ: 50000):');
+                return;
+            }
+
+            if (data.startsWith('napzalo_')) {
+                const amount = parseInt(data.split('_')[1]);
+                await provideZaloPayInfo(bot, msg.chat.id, amount);
+                return;
+            }
+
+            if (data.startsWith('card_telco_')) {
+                const telco = data.split('_')[2];
+                userStates[msg.chat.id] = { type: 'deposit_card_amount', telco: telco };
+                bot.sendMessage(msg.chat.id, `📱 Nhà mạng: <b>${telco}</b>\n\n💰 Vui lòng nhập mệnh giá thẻ (Ví dụ: 50000):`, { parse_mode: 'HTML' });
+                return;
+            }
+
+            if (data.startsWith('cl_replay_')) {
+                const parts = data.split('_');
+                const type = parts[2];
+                const amount = parseInt(parts[3]);
+                const fromUser = callbackQuery.from;
+                const fromUsername = fromUser.first_name || 'Người chơi';
+                await processEvenOddBet(bot, msg.chat.id, fromUser.id, fromUsername, type, amount);
+                return;
+            }
+
+            if (data.startsWith('tx_replay_')) {
+                const parts = data.split('_');
+                const type = parts[2];
+                const amount = parseInt(parts[3]);
+                const fromUser = callbackQuery.from;
+                const fromUsername = fromUser.first_name || 'Người chơi';
+                await processTaiXiuBet(bot, msg.chat.id, fromUser.id, fromUsername, type, amount);
+                return;
+            }
+
+            if (data.startsWith('dice_replay_')) {
+                const parts = data.split('_');
+                const type = parts[2];
+                const amount = parseInt(parts[3]);
+                const fromUser = callbackQuery.from;
+                const fromUsername = fromUser.first_name || 'Người chơi';
+                await processDiceBet(bot, msg.chat.id, fromUser.id, fromUsername, type, amount);
+                return;
+            }
+
+            if (data.startsWith('history_deposit_page_')) {
+                const page = parseInt(data.split('_')[3]);
+                await sendTransactionHistory(bot, msg.chat.id, callbackQuery.from.id, 'deposit', page, msg.message_id);
+                return;
+            }
+
+            if (data.startsWith('history_withdraw_page_')) {
+                const page = parseInt(data.split('_')[3]);
+                await sendTransactionHistory(bot, msg.chat.id, callbackQuery.from.id, 'withdraw', page, msg.message_id);
+                return;
+            }
+
+            // --- Xử lý Rút tiền (WithdrawHandler) ---
+            if (data.startsWith('amount_') || data.startsWith('bank_') || data.startsWith('withdraw_')) {
+                await WithdrawHandler.handleCallback(bot, callbackQuery, userStates);
+                return;
+            }
+            
+            // --- Xử lý Két sắt ---
+            if (data === 'account_safe') {
+                await SafeHandler.start(bot, msg.chat.id, userStates);
+                return;
+            }
+            if (data.startsWith('safe_')) {
+                await SafeHandler.handleCallback(bot, callbackQuery, userStates);
+                return;
+            }
+
             // --- Xử lý các nút từ menu tài khoản ---
-            const userId = msg.chat.id;
             switch (data) {
                 case 'account_deposit':
-                    await DepositHandler.show(bot, msg);
+                    {
+                        if (settings && settings.maintenanceDeposit) {
+                            return bot.sendMessage(userId, '❌ Hệ thống nạp tiền đang bảo trì. Vui lòng quay lại sau.');
+                        }
+                        await DepositHandler.show(bot, msg);
+                    }
                     return;
                 case 'account_withdraw':
+                    if (settings && settings.maintenanceWithdraw) {
+                        return bot.sendMessage(userId, '❌ Hệ thống rút tiền đang bảo trì. Vui lòng quay lại sau.');
+                    }
                     await WithdrawHandler.start(bot, msg, userStates);
                     return;
                 case 'account_transfer':
@@ -324,12 +947,10 @@ async function startMainBot(botConfig) {
                     bot.sendMessage(userId, 'Chức năng "Chuyển Tiền" đang được phát triển.');
                     return;
                 case 'history_deposit':
-                    // Thêm logic xem lịch sử nạp ở đây
-                    bot.sendMessage(userId, 'Chức năng "Lịch sử Nạp" đang được phát triển.');
+                    await sendTransactionHistory(bot, userId, callbackQuery.from.id, 'deposit', 1);
                     return;
                 case 'history_withdraw':
-                    // Thêm logic xem lịch sử rút ở đây
-                    bot.sendMessage(userId, 'Chức năng "Lịch sử Rút" đang được phát triển.');
+                    await sendTransactionHistory(bot, userId, callbackQuery.from.id, 'withdraw', 1);
                     return;
                 case 'history_betting':
                     // Thêm logic xem lịch sử cược ở đây
@@ -339,7 +960,49 @@ async function startMainBot(botConfig) {
                     // Thêm logic nhập giftcode ở đây
                     bot.sendMessage(userId, 'Vui lòng nhập giftcode theo cú pháp: `/gift [mã]`');
                     return;
-                // Các case khác cho shop_giftcode, exchange_vip_points, mailbox...
+                case 'shop_giftcode':
+                    const shopMsg = `🛒 <b>MUA GIFTCODE TỰ ĐỘNG</b>\n\n` +
+                        `Hệ thống hỗ trợ tạo Giftcode số lượng lớn (Phí 15%).\n\n` +
+                        `➡️ <b>Cú pháp:</b> <code>/muaGiftCode [số_lượng] [mệnh_giá]</code>\n` +
+                        `➡️ <b>Ví dụ:</b> <code>/muaGiftCode 5 50000</code>\n` +
+                        `(Mua 5 code, mỗi code trị giá 50.000đ)\n\n` +
+                        `<i>Sau khi mua thành công, danh sách code sẽ được gửi ngay cho bạn.</i>`;
+                    bot.sendMessage(userId, shopMsg, { parse_mode: 'HTML' });
+                    return;
+                case 'exchange_vip_points':
+                    try {
+                        const accVip = await Account.findOne({ userId });
+                        if (!accVip) return bot.sendMessage(userId, '❌ Không tìm thấy thông tin tài khoản.');
+
+                        const points = accVip.vipPoints || 0;
+                        if (points < 1000) { // Giới hạn tối thiểu để đổi
+                            return bot.sendMessage(userId, `❌ Bạn cần tối thiểu 1,000 điểm VIP để đổi thưởng.\n💎 Điểm hiện tại: <b>${points.toLocaleString()}</b>`, { parse_mode: 'HTML' });
+                        }
+
+                        // Tỷ lệ: 1 điểm = 10 VNĐ (Tương đương hoàn trả 1% nếu 1000đ cược = 1 điểm)
+                        const RATE = 10; 
+                        const bonus = points * RATE;
+
+                        accVip.balance += bonus;
+                        accVip.vipPoints = 0; // Reset điểm sau khi đổi
+                        accVip.usedVipPoints = (accVip.usedVipPoints || 0) + points;
+                        await accVip.save();
+
+                        await Transaction.create({
+                            userId,
+                            amount: bonus,
+                            action: 'add',
+                            oldBalance: accVip.balance - bonus,
+                            newBalance: accVip.balance,
+                            description: `Đổi ${points} điểm VIP`
+                        });
+
+                        await bot.sendMessage(userId, `✅ <b>ĐỔI ĐIỂM THÀNH CÔNG</b>\n\n💎 Đã đổi: <b>${points.toLocaleString()} điểm</b>\n💰 Tỷ lệ: 1 điểm = ${RATE}đ\n🎁 Nhận được: <b>${bonus.toLocaleString()} VNĐ</b>\n💵 Số dư mới: <b>${accVip.balance.toLocaleString()} VNĐ</b>`, { parse_mode: 'HTML' });
+                    } catch (e) {
+                        console.error('[Exchange VIP Error]', e);
+                        bot.sendMessage(userId, '❌ Có lỗi xảy ra khi đổi điểm.');
+                    }
+                    return;
             }
             // --- Kết thúc xử lý nút menu tài khoản ---
 
@@ -382,6 +1045,12 @@ async function startMainBot(botConfig) {
         bot.onText(/\/napbank (\d+)/, async (msg, match) => {
             const amount = parseInt(match[1]);
             if (msg.chat.type !== 'private') return; // Chỉ cho phép trong chat riêng
+            const settings = await Setting.findOne({});
+            if (settings && settings.maintenanceSystem) {
+                return bot.sendMessage(msg.chat.id, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+            }
+            const account = await Account.findOne({ userId: msg.chat.id });
+            if (account && account.status === 0) return bot.sendMessage(msg.chat.id, '🚫 Tài khoản của bạn đã bị khóa.');
             await provideBankInfo(bot, msg.chat.id, amount);
         });
 
@@ -423,13 +1092,25 @@ async function provideBankInfo(bot, chatId, amount) {
     }
     depositCooldowns[chatId] = now;
 
-    const MIN_DEPOSIT = 20000;
-    if (amount < MIN_DEPOSIT) {
-        return bot.sendMessage(chatId, `❌ Số tiền nạp tối thiểu là ${MIN_DEPOSIT.toLocaleString()}đ.`);
-    }
-
     try {
         const settings = await Setting.findOne({});
+        if (settings && settings.maintenanceSystem) {
+            return bot.sendMessage(chatId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ NÂNG CẤP</b>\n\nVui lòng quay lại sau.', { parse_mode: 'HTML' });
+        }
+        if (settings && settings.maintenanceDeposit) {
+            return bot.sendMessage(chatId, '❌ Hệ thống nạp tiền đang bảo trì. Vui lòng quay lại sau.');
+        }
+
+        const minDeposit = settings && settings.minDeposit ? parseInt(settings.minDeposit) : 20000;
+        const maxDeposit = settings && settings.maxDeposit ? parseInt(settings.maxDeposit) : 500000000;
+
+        if (amount < minDeposit) {
+            return bot.sendMessage(chatId, `❌ Số tiền nạp tối thiểu là ${minDeposit.toLocaleString()}đ.`);
+        }
+        if (amount > maxDeposit) {
+            return bot.sendMessage(chatId, `❌ Số tiền nạp tối đa là ${maxDeposit.toLocaleString()}đ.`);
+        }
+
         let bankAccount = null;
             
             // Mặc định là bật nếu chưa cấu hình (để khớp với giao diện Admin)
@@ -499,6 +1180,355 @@ async function provideBankInfo(bot, chatId, amount) {
     } catch (error) {
         console.error('[Provide Bank Info Error]', error);
         await bot.sendMessage(chatId, '❌ Đã có lỗi xảy ra khi tạo yêu cầu nạp tiền. Vui lòng thử lại.');
+    }
+}
+
+async function provideZaloPayInfo(bot, chatId, amount) {
+    // Chống spam
+    const lastTime = depositCooldowns[chatId] || 0;
+    const now = Date.now();
+    if (now - lastTime < 15000) return bot.sendMessage(chatId, `⏳ Vui lòng đợi vài giây trước khi tạo lệnh mới.`);
+    depositCooldowns[chatId] = now;
+
+    try {
+        // 1. Lấy ví ZaloPay đang hoạt động có liên kết ngân hàng
+        const wallet = await EWallet.findOne({ walletType: 'ZaloPay', status: 1 });
+        if (!wallet || !wallet.accountNumber) {
+            return bot.sendMessage(chatId, '❌ Hệ thống nạp ZaloPay đang bảo trì hoặc chưa cấu hình tài khoản ngân hàng liên kết.');
+        }
+
+        // 2. Xử lý số tiền duy nhất (để tránh trùng lặp)
+        let finalAmount = amount;
+        let isUnique = false;
+        let attempts = 0;
+        while (!isUnique && attempts < 20) {
+            const existing = await Deposit.findOne({ amount: finalAmount, status: 0 });
+            if (!existing) isUnique = true;
+            else { finalAmount += Math.floor(Math.random() * 50) + 1; attempts++; }
+        }
+
+        const transCode = `NAP${Math.floor(100000 + Math.random() * 900000)}`;
+
+        // 3. Tạo link VietQR
+        const bankId = 'VietCapitalBank'; // Ngân hàng Bản Việt
+        const qrLink = `https://img.vietqr.io/image/${bankId}-${wallet.accountNumber}-qr_only.jpg?amount=${finalAmount}&accountName=${encodeURIComponent(wallet.name)}`;
+
+        // 4. Lưu lệnh nạp vào DB
+        await Deposit.create({
+            userId: chatId,
+            amount: finalAmount,
+            method: 'ZaloPay',
+            requestId: transCode,
+            status: 0
+        });
+
+        // 5. Gửi thông tin cho khách
+        const caption = `✅ <b>NẠP TIỀN ZALOPAY</b>\n\n` +
+            `Vui lòng quét mã QR hoặc chuyển khoản thủ công:\n\n` +
+            `📞 <b>Ví ZaloPay:</b> <code>${wallet.phoneNumber}</code>\n` +
+            `👤 <b>Tên:</b> ${wallet.name}\n` +
+            `💰 <b>Số tiền:</b> <code>${finalAmount.toLocaleString()}</code> ₫\n\n` +
+            `⚠️ <b>QUAN TRỌNG:</b>\n` +
+            `👉 Quét mã QR để thanh toán nhanh.\n` +
+            `👉 Vui lòng chuyển <b>CHÍNH XÁC SỐ TIỀN</b> (kể cả số lẻ) để được duyệt tự động.`;
+
+        try {
+            await bot.sendPhoto(chatId, qrLink, { caption, parse_mode: 'HTML' });
+        } catch (photoErr) {
+            console.error('[ZaloPay Info Error] Lỗi gửi ảnh QR:', photoErr.message);
+            // Fallback: Gửi tin nhắn text nếu ảnh lỗi
+            await bot.sendMessage(chatId, caption + `\n\n❌ Không tải được mã QR, vui lòng chuyển khoản thủ công theo thông tin trên.`, { parse_mode: 'HTML' });
+        }
+
+    } catch (error) {
+        console.error('[ZaloPay Info Error]', error);
+        await bot.sendMessage(chatId, '❌ Có lỗi xảy ra. Vui lòng thử lại sau.');
+    }
+}
+
+async function processEvenOddBet(bot, chatId, userId, username, type, amount, replyToMessageId = null) {
+    try {
+        // 1. Kiểm tra bảo trì hệ thống
+        const settings = await Setting.findOne({});
+        if (settings && settings.maintenanceSystem) {
+            return bot.sendMessage(chatId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+        }
+
+        const minBet = settings?.minBetCL || 1000;
+        const maxBet = settings?.maxBetCL || 10000000;
+
+        // 2. Validate số tiền
+        if (isNaN(amount) || amount < minBet || amount > maxBet) {
+            return bot.sendMessage(chatId, `❌ Cược từ ${minBet.toLocaleString()} - ${maxBet.toLocaleString()} VNĐ.`);
+        }
+
+        // 3. Kiểm tra số dư
+        const account = await Account.findOne({ userId });
+        if (account && account.status === 0) return bot.sendMessage(chatId, '🚫 Tài khoản của bạn đã bị khóa.');
+        if (!account || account.balance < amount) {
+            return bot.sendMessage(chatId, '❌ Số dư không đủ để đặt cược.');
+        }
+
+        // 4. Trừ tiền & Ghi nhận cược
+        account.balance -= amount;
+        account.totalBet = (account.totalBet || 0) + amount; // Cộng dồn tổng cược để tính rút tiền
+        await account.save();
+
+        // 5. Xử lý kết quả (Timeticks)
+        const now = Date.now();
+        const lastDigit = now % 10; // Lấy số cuối của mili giây
+        const isEven = lastDigit % 2 === 0; // 0, 2, 4, 6, 8 là Chẵn
+        
+        // Xác định thắng thua: C (Chẵn) thắng nếu isEven, L (Lẻ) thắng nếu !isEven
+        const isWin = (type === 'C' && isEven) || (type === 'L' && !isEven);
+        
+        let winAmount = 0;
+        let resultText = '';
+
+        if (isWin) {
+            winAmount = Math.floor(amount * 1.95); // Tỷ lệ x1.95
+            account.balance += winAmount;
+            await account.save();
+            resultText = `🎉 <b>CHIẾN THẮNG</b> (+${winAmount.toLocaleString()}đ)`;
+        } else {
+            resultText = `💔 <b>THẤT BẠI</b>`;
+        }
+
+        // Lưu lịch sử
+        try {
+            await MiniGameHistory.create({
+                game: 'cl_tele', userId, username,
+                betType: type, betAmount: amount, winAmount,
+                date: new Date()
+            });
+        } catch (e) {
+            console.error('Lỗi lưu lịch sử CL:', e);
+        }
+
+        // 6. Gửi kết quả
+        const resultTypeStr = isEven ? 'Chẵn' : 'Lẻ';
+        const userChoiceStr = type === 'C' ? 'Chẵn' : 'Lẻ';
+        
+        const responseMsg = `🎲 <b>CHẴN - LẺ TELEGRAM</b> 🎲\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `👤 Người chơi: <b>${username}</b>\n` +
+            `💰 Cược: <b>${userChoiceStr}</b> - <b>${amount.toLocaleString()}đ</b>\n` +
+            `🕰 Time: <code>${now}</code>\n` +
+            `🔢 Kết quả: <b>${lastDigit}</b> (${resultTypeStr})\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `${resultText}\n` +
+            `💰 Số dư: <b>${account.balance.toLocaleString()}đ</b>\n` +
+            `👉 <i>Check: epochconverter.com</i>`;
+
+        const opts = { 
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: `🔄 Chơi lại (${type} ${amount.toLocaleString()})`, callback_data: `cl_replay_${type}_${amount}` }]
+                ]
+            }
+        };
+        if (replyToMessageId) opts.reply_to_message_id = replyToMessageId;
+
+        await bot.sendMessage(chatId, responseMsg, opts);
+
+    } catch (err) {
+        console.error('[CL Game Error]', err);
+        bot.sendMessage(chatId, '❌ Có lỗi xảy ra, vui lòng thử lại sau.');
+    }
+}
+
+async function processTaiXiuBet(bot, chatId, userId, username, type, amount, replyToMessageId = null) {
+    try {
+        // 1. Kiểm tra bảo trì hệ thống
+        const settings = await Setting.findOne({});
+        if (settings && settings.maintenanceSystem) {
+            return bot.sendMessage(chatId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+        }
+
+        const minBet = settings?.minBetTX || 1000;
+        const maxBet = settings?.maxBetTX || 10000000;
+
+        // 2. Validate số tiền
+        if (isNaN(amount) || amount < minBet || amount > maxBet) {
+            return bot.sendMessage(chatId, `❌ Cược từ ${minBet.toLocaleString()} - ${maxBet.toLocaleString()} VNĐ.`);
+        }
+
+        // 3. Kiểm tra số dư
+        const account = await Account.findOne({ userId });
+        if (account && account.status === 0) return bot.sendMessage(chatId, '🚫 Tài khoản của bạn đã bị khóa.');
+        if (!account || account.balance < amount) {
+            return bot.sendMessage(chatId, '❌ Số dư không đủ để đặt cược.');
+        }
+
+        // 4. Trừ tiền & Ghi nhận cược
+        account.balance -= amount;
+        account.totalBet = (account.totalBet || 0) + amount; // Cộng dồn tổng cược
+        await account.save();
+
+        // 5. Xử lý kết quả (Timeticks)
+        const now = Date.now();
+        const lastDigit = now % 10; // Lấy số cuối của mili giây
+        
+        // Quy ước: 0-4 là Xỉu, 5-9 là Tài
+        const isTai = lastDigit >= 5;
+        const isXiu = lastDigit <= 4;
+
+        // Xác định thắng thua
+        const isWin = (type === 'T' && isTai) || (type === 'X' && isXiu);
+        
+        let winAmount = 0;
+        let resultText = '';
+
+        if (isWin) {
+            winAmount = Math.floor(amount * 1.95); // Tỷ lệ x1.95
+            account.balance += winAmount;
+            await account.save();
+            resultText = `🎉 <b>CHIẾN THẮNG</b> (+${winAmount.toLocaleString()}đ)`;
+        } else {
+            resultText = `💔 <b>THẤT BẠI</b>`;
+        }
+
+        // Lưu lịch sử
+        try {
+            await MiniGameHistory.create({
+                game: 'tx_tele', userId, username,
+                betType: type, betAmount: amount, winAmount,
+                date: new Date()
+            });
+        } catch (e) {
+            console.error('Lỗi lưu lịch sử TX:', e);
+        }
+
+        // 6. Gửi kết quả
+        const resultTypeStr = isTai ? 'Tài' : 'Xỉu';
+        const userChoiceStr = type === 'T' ? 'Tài' : 'Xỉu';
+        
+        const responseMsg = `🎲 <b>TÀI - XỈU TELEGRAM</b> 🎲\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `👤 Người chơi: <b>${username}</b>\n` +
+            `💰 Cược: <b>${userChoiceStr}</b> - <b>${amount.toLocaleString()}đ</b>\n` +
+            `🕰 Time: <code>${now}</code>\n` +
+            `🔢 Kết quả: <b>${lastDigit}</b> (${resultTypeStr})\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `${resultText}\n` +
+            `💰 Số dư: <b>${account.balance.toLocaleString()}đ</b>\n` +
+            `👉 <i>Check: epochconverter.com</i>`;
+
+        const opts = { 
+            parse_mode: 'HTML',
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: `🔄 Chơi lại (${type} ${amount.toLocaleString()})`, callback_data: `tx_replay_${type}_${amount}` }]
+                ]
+            }
+        };
+        if (replyToMessageId) opts.reply_to_message_id = replyToMessageId;
+
+        await bot.sendMessage(chatId, responseMsg, opts);
+
+    } catch (err) {
+        console.error('[TX Game Error]', err);
+        bot.sendMessage(chatId, '❌ Có lỗi xảy ra, vui lòng thử lại sau.');
+    }
+}
+
+async function processDiceBet(bot, chatId, userId, username, type, amount, replyToMessageId = null) {
+    try {
+        // 1. Kiểm tra bảo trì hệ thống
+        const settings = await Setting.findOne({});
+        if (settings && settings.maintenanceSystem) {
+            return bot.sendMessage(chatId, '⚠️ <b>HỆ THỐNG ĐANG BẢO TRÌ</b>', { parse_mode: 'HTML' });
+        }
+
+        const minBet = settings?.minBetDice || 1000;
+        const maxBet = settings?.maxBetDice || 10000000;
+
+        // 2. Validate số tiền
+        if (isNaN(amount) || amount < minBet || amount > maxBet) {
+            return bot.sendMessage(chatId, `❌ Cược từ ${minBet.toLocaleString()} - ${maxBet.toLocaleString()} VNĐ.`);
+        }
+
+        // 3. Kiểm tra số dư
+        const account = await Account.findOne({ userId });
+        if (account && account.status === 0) return bot.sendMessage(chatId, '🚫 Tài khoản của bạn đã bị khóa.');
+        if (!account || account.balance < amount) {
+            return bot.sendMessage(chatId, '❌ Số dư không đủ để đặt cược.');
+        }
+
+        // 4. Trừ tiền & Ghi nhận cược
+        account.balance -= amount;
+        account.totalBet = (account.totalBet || 0) + amount;
+        await account.save();
+
+        // 5. Gửi Xúc Xắc (Telegram Dice)
+        const diceMsg = await bot.sendDice(chatId, { emoji: '🎲', reply_to_message_id: replyToMessageId });
+        const diceValue = diceMsg.dice.value;
+
+        // 6. Xử lý kết quả
+        let isWin = false;
+        let rate = 0;
+
+        switch (type) {
+            case 'XXC': // Chẵn: 2, 4, 6
+                if ([2, 4, 6].includes(diceValue)) { isWin = true; rate = 1.95; }
+                break;
+            case 'XXL': // Lẻ: 1, 3, 5
+                if ([1, 3, 5].includes(diceValue)) { isWin = true; rate = 1.95; }
+                break;
+            case 'XXT': // Tài: 4, 5, 6
+                if ([4, 5, 6].includes(diceValue)) { isWin = true; rate = 1.95; }
+                break;
+            case 'XXX': // Xỉu: 1, 2, 3
+                if ([1, 2, 3].includes(diceValue)) { isWin = true; rate = 1.95; }
+                break;
+            default: // D1 - D6
+                if (type.startsWith('D')) {
+                    const target = parseInt(type.slice(1));
+                    if (diceValue === target) { isWin = true; rate = 5; }
+                }
+                break;
+        }
+
+        // Đợi 3s cho animation xúc xắc chạy xong
+        await new Promise(r => setTimeout(r, 3000));
+
+        let resultText = '';
+        if (isWin) {
+            const winAmount = Math.floor(amount * rate);
+            account.balance += winAmount;
+            await account.save();
+            resultText = `🎉 <b>CHIẾN THẮNG</b> (+${winAmount.toLocaleString()}đ)`;
+        } else {
+            resultText = `💔 <b>THẤT BẠI</b>`;
+        }
+
+        // Lưu lịch sử
+        try {
+            await MiniGameHistory.create({
+                game: 'dice_tele', userId, username,
+                betType: type, betAmount: amount, winAmount,
+                date: new Date()
+            });
+        } catch (e) {
+            console.error('Lỗi lưu lịch sử Dice:', e);
+        }
+
+        const responseMsg = `🎲 <b>XÚC XẮC TELEGRAM</b> 🎲\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `👤 Người chơi: <b>${username}</b>\n` +
+            `💰 Cược: <b>${type}</b> - <b>${amount.toLocaleString()}đ</b>\n` +
+            `🎲 Kết quả: <b>${diceValue}</b>\n` +
+            `➖➖➖➖➖➖➖➖➖➖\n` +
+            `${resultText}\n` +
+            `💰 Số dư: <b>${account.balance.toLocaleString()}đ</b>`;
+
+        const opts = { parse_mode: 'HTML', reply_to_message_id: diceMsg.message_id, reply_markup: { inline_keyboard: [[{ text: `🔄 Chơi lại (${type} ${amount.toLocaleString()})`, callback_data: `dice_replay_${type}_${amount}` }]] } };
+        await bot.sendMessage(chatId, responseMsg, opts);
+
+    } catch (err) {
+        console.error('[Dice Game Error]', err);
+        bot.sendMessage(chatId, '❌ Có lỗi xảy ra, vui lòng thử lại sau.');
     }
 }
 
@@ -636,6 +1666,96 @@ async function sendGiftcode({ code, messageTemplate = null, targetType = 'all', 
 }
 
 /**
+ * Xử lý thông báo nạp ZaloPay thành công (Gọi từ Socket hoặc IPC)
+ * @param {Object} data { userId, amount, transId, balance }
+ */
+async function notifyZaloPaySuccess(data) {
+    if (!mainBotInstance) return { success: false, message: 'Bot chưa khởi tạo' };
+    
+    const { userId, amount, transId, balance } = data;
+    const content = `✅ <b>NẠP TIỀN ZALOPAY THÀNH CÔNG</b>\n\n` +
+                    `💰 Số tiền: <b>${parseInt(amount).toLocaleString()} ₫</b>\n` +
+                    `📝 Mã GD: <code>${transId}</code>\n` +
+                    `💵 Số dư mới: <b>${parseInt(balance).toLocaleString()} ₫</b>\n\n` +
+                    `Cảm ơn bạn đã tin tưởng và sử dụng dịch vụ!`;
+
+    try {
+        await mainBotInstance.sendMessage(userId, content, { parse_mode: 'HTML' });
+        return { success: true };
+    } catch (e) {
+        console.error('[Main Bot] notifyZaloPaySuccess error:', e.message);
+        return { success: false, message: e.message };
+    }
+}
+
+/**
+ * Hàm gửi lịch sử giao dịch có phân trang
+ */
+async function sendTransactionHistory(bot, chatId, userId, type, page = 1, messageId = null) {
+    const ITEMS_PER_PAGE = 5;
+    const Model = type === 'deposit' ? Deposit : Withdraw;
+    const title = type === 'deposit' ? 'LỊCH SỬ NẠP TIỀN' : 'LỊCH SỬ RÚT TIỀN';
+    const emptyMsg = type === 'deposit' ? '📭 Bạn chưa có giao dịch nạp tiền nào.' : '📭 Bạn chưa có giao dịch rút tiền nào.';
+
+    try {
+        const totalDocs = await Model.countDocuments({ userId });
+        if (totalDocs === 0) {
+            if (messageId) {
+                await bot.editMessageText(emptyMsg, { chat_id: chatId, message_id: messageId });
+            } else {
+                await bot.sendMessage(chatId, emptyMsg);
+            }
+            return;
+        }
+
+        const totalPages = Math.ceil(totalDocs / ITEMS_PER_PAGE);
+        if (page < 1) page = 1;
+        if (page > totalPages) page = totalPages;
+
+        const skip = (page - 1) * ITEMS_PER_PAGE;
+        const transactions = await Model.find({ userId })
+            .sort({ date: -1 })
+            .skip(skip)
+            .limit(ITEMS_PER_PAGE);
+
+        let msgContent = `📥 <b>${title}</b> (Trang ${page}/${totalPages})\n\n`;
+        
+        transactions.forEach(trans => {
+            const statusIcon = trans.status === 1 ? '✅' : (trans.status === 2 ? '❌' : '⏳');
+            const dateStr = new Date(trans.date).toLocaleString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+            const method = type === 'deposit' ? (trans.method || 'Unknown') : (trans.bankName || 'Bank');
+            const amount = trans.amount ? trans.amount.toLocaleString() : '0';
+            const code = trans.requestId || 'N/A';
+            
+            msgContent += `${statusIcon} <b>${amount}đ</b> (${method})\n`;
+            msgContent += `   └ ${dateStr} - <code>${code}</code>\n`;
+            if (trans.status === 2 && trans.description) {
+                 msgContent += `   └ Lý do: ${trans.description}\n`;
+            }
+            msgContent += `\n`;
+        });
+
+        const inlineKeyboard = [];
+        const navRow = [];
+        
+        if (page > 1) navRow.push({ text: '⬅️ Trước', callback_data: `history_${type}_page_${page - 1}` });
+        if (page < totalPages) navRow.push({ text: 'Sau ➡️', callback_data: `history_${type}_page_${page + 1}` });
+        
+        if (navRow.length > 0) inlineKeyboard.push(navRow);
+        inlineKeyboard.push([{ text: '🔄 Làm mới', callback_data: `history_${type}_page_1` }]);
+
+        const opts = { parse_mode: 'HTML', reply_markup: { inline_keyboard: inlineKeyboard }, chat_id: chatId, message_id: messageId };
+
+        if (messageId) await bot.editMessageText(msgContent, opts).catch(() => {});
+        else await bot.sendMessage(chatId, msgContent, { parse_mode: 'HTML', reply_markup: { inline_keyboard: inlineKeyboard } });
+
+    } catch (e) {
+        console.error(`[History ${type} Error]`, e);
+        await bot.sendMessage(chatId, '❌ Có lỗi xảy ra khi tải lịch sử.');
+    }
+}
+
+/**
  * Hàm gửi tin nhắn từ Admin tới User (Dùng cho App React gọi xuống)
  */
-module.exports = { startMainBot, checkConnection, sendMaintenanceNotification, sendNotification, sendGiftcode };
+module.exports = { startMainBot, checkConnection, sendMaintenanceNotification, sendNotification, sendGiftcode, notifyZaloPaySuccess };

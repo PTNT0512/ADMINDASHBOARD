@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 function ToolCode() {
   const [codes, setCodes] = useState([]);
-  const [form, setForm] = useState({ code: '', amount: '' });
+  const [form, setForm] = useState({ code: '', amount: '', usageLimit: 1 });
 
   const fetchCodes = async () => {
     if (window.require) {
@@ -20,7 +20,7 @@ function ToolCode() {
       const { ipcRenderer } = window.require('electron');
       const result = await ipcRenderer.invoke('create-giftcode', form);
       if (result.success) {
-        setForm({ code: '', amount: '' });
+        setForm({ code: '', amount: '', usageLimit: 1 });
         fetchCodes();
       } else {
         alert('Lỗi: ' + result.message);
@@ -57,13 +57,26 @@ function ToolCode() {
             <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Giá trị (VNĐ)</label>
             <input type="number" style={{ width: '100%', padding: '8px' }} value={form.amount} onChange={(e) => setForm({...form, amount: e.target.value})} placeholder="Nhập số tiền..." required />
           </div>
+          <div style={{ flex: 0.5 }}>
+            <label style={{display: 'block', marginBottom: '5px', fontSize: '13px'}}>Số lượng</label>
+            <input type="number" style={{ width: '100%', padding: '8px' }} value={form.usageLimit} onChange={(e) => setForm({...form, usageLimit: e.target.value})} placeholder="1" required />
+          </div>
           <button type="submit" style={{ width: 'auto', padding: '8px 20px', height: '35px' }}>Tạo Code</button>
         </form>
       </div>
       <div className="table-container">
         <table>
-          <thead><tr><th>Mã Code</th><th>Giá trị</th><th>Trạng thái</th><th>Ngày tạo</th><th>Hành động</th></tr></thead>
-          <tbody>{codes.map(item => (<tr key={item.id}><td style={{ fontWeight: 'bold', color: '#e91e63' }}>{item.code}</td><td style={{ fontWeight: 'bold' }}>{item.amount?.toLocaleString()}</td><td>{item.status === 1 ? <span style={{color: 'green', fontWeight: 'bold'}}>Chưa dùng</span> : <span style={{color: 'gray'}}>Đã dùng</span>}</td><td>{new Date(item.date).toLocaleDateString('vi-VN')}</td><td><button className="delete-btn" onClick={() => handleDelete(item.id)}>Xóa</button></td></tr>))}</tbody>
+          <thead><tr><th>Mã Code</th><th>Giá trị</th><th>Lượt dùng</th><th>Trạng thái</th><th>Ngày tạo</th><th>Hành động</th></tr></thead>
+          <tbody>{codes.map(item => (
+            <tr key={item.id}>
+              <td style={{ fontWeight: 'bold', color: '#e91e63' }}>{item.code}</td>
+              <td style={{ fontWeight: 'bold' }}>{item.amount?.toLocaleString()}</td>
+              <td>{item.usedCount || 0} / {item.usageLimit || 1}</td>
+              <td>{item.status === 1 ? <span style={{color: 'green', fontWeight: 'bold'}}>Hoạt động</span> : <span style={{color: 'gray'}}>Đã hết</span>}</td>
+              <td>{new Date(item.date).toLocaleDateString('vi-VN')}</td>
+              <td><button className="delete-btn" onClick={() => handleDelete(item.id)}>Xóa</button></td>
+            </tr>
+          ))}</tbody>
         </table>
       </div>
     </>

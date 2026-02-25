@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const fs = require('fs');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, spawn, fork } = require('child_process');
 const path = require('path');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
@@ -13,9 +13,11 @@ const cors = require('cors');
 const FormData = require('form-data');
 const cron = require('node-cron');
 const GameSession = require('../src/game/GameSession.js');
+const { io: ioClient } = require('socket.io-client');
 
 require('../src/init-env.js');
 require('dotenv').config({ path: path.join(__dirname, '../.env.apibank') });
+
 
 // --- LOAD PORTS FROM ENV ---
 const TAIXIU_WEB_PORT = process.env.TAIXIU_WEB_PORT || 4003;
@@ -25,9 +27,14 @@ const DASHBOARD_PORT = process.env.DASHBOARD_PORT || 5173;
 // --- TAIXIUCAO & TAIXIUNAN WEBAPP CHILD PROCESS ---
 let taixiuCaoWebProcess = null;
 let taixiuNanWebProcess = null;
+let landingServerProcess = null;
 let taixiuCaoWebLogs = [];
 let taixiuNanWebLogs = [];
 const MAX_WEB_LOGS = 200;
+
+
+
+
 
 // Helper: Kill process tree on Windows to avoid "Terminate batch job?" prompt
 function safeKill(child) {
@@ -49,7 +56,6 @@ function startTaixiuCaoWebProcess() {
     return;
   }
   const cwd = path.join(__dirname, '../web-taixiucao');
-  const { spawn } = require('child_process');
   const env = { ...process.env };
   delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế để process con chạy nhẹ hơn
   env.NODE_OPTIONS = '--max-old-space-size=512';
@@ -86,7 +92,6 @@ function startTaixiuNanWebProcess() {
     return;
   }
   const cwd = path.join(__dirname, '../web-taixiunan');
-  const { spawn } = require('child_process');
   const env = { ...process.env };
   delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
   env.NODE_OPTIONS = '--max-old-space-size=512';
@@ -115,6 +120,20 @@ function stopTaixiuNanWebProcess() {
     safeKill(taixiuNanWebProcess);
     taixiuNanWebProcess = null;
   }
+}
+
+function startLandingServer() {
+    if (landingServerProcess) return;
+    const cwd = path.join(__dirname, '../landing');
+    // Chạy landing server bằng Vite (npm run dev)
+    const child = spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'dev'], { cwd, stdio: 'inherit', shell: true });
+    landingServerProcess = child;
+    console.log('🚀 [Launcher] Đã khởi động Landing Page (Vite Port 80)');
+
+    child.on('exit', () => {
+        console.log('⚠️ [Launcher] Landing Page đã tắt');
+        landingServerProcess = null;
+    });
 }
 
 // --- EXTRA GAME WEBS (PORTS 1111-1115) ---
@@ -173,7 +192,8 @@ function scaffoldGameProject(game, jsxPath) {
       },
       dependencies: {
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "react-router-dom": "^6.22.3"
       },
       devDependencies: {
         "@types/react": "^18.2.66",
@@ -288,7 +308,6 @@ function startSingleExtraGame(game) {
     // ------------------------------------------------------------------
 
     try {
-      const { spawn } = require('child_process');
       console.log(`[Dashboard] Khởi động web ${game.id} trên port ${game.port}...`);
       
       // Kiểm tra node_modules
@@ -405,6 +424,11 @@ ipcMain.handle('stop-taixiunan-web', async () => { try { stopTaixiuNanWebProcess
 ipcMain.handle('get-taixiunan-web-status', async () => { return { success: true, running: !!taixiuNanWebProcess }; });
 ipcMain.handle('get-taixiunan-web-log', async () => { return { success: true, logs: taixiuNanWebLogs }; });
 
+// --- IPC HANDLERS FOR LANDING SERVER ---
+ipcMain.handle('start-landing-server', async () => { try { startLandingServer(); return { success: true }; } catch (e) { console.error(e); return { success: false, message: e.message }; } });
+ipcMain.handle('stop-landing-server', async () => { try { if (landingServerProcess) safeKill(landingServerProcess); landingServerProcess = null; return { success: true }; } catch (e) { return { success: false, message: e.message }; } });
+ipcMain.handle('get-landing-server-status', async () => { return { success: true, running: !!landingServerProcess }; });
+
 // --- IPC HANDLERS FOR INTERNAL GAME ENGINE ---
 ipcMain.handle('get-game-engine-status', () => ({ success: true, running: isGameEngineRunning }));
 ipcMain.handle('start-game-engine', () => { startGameEngine(); return { success: true }; });
@@ -438,6 +462,7 @@ const CommissionSetting = require('../src/models/CommissionSetting.js');
 const TxGameHistory = require('../src/models/TxGameHistory.js');
 const Md5History = require('../src/models/Md5History.js');
 const KhongMinhHistory = require('../src/models/KhongMinhHistory.js');
+const MiniGameHistory = require('../src/models/MiniGameHistory.js');
 const createSupportRouter = require('../src/api/support.router.js');
 const BankHistory = require('../src/models/BankHistory.js');
 const { startOrUpdateBot, setIo } = require('../src/components/bot-service.js'); // This was already correct
@@ -445,6 +470,8 @@ const { startBankCron } = require('../src/components/bank-cron-service.js'); // 
 const mainBotService = require('../src/components/main-bot-service.js');
 const { startMainBot } = mainBotService;
 const { startCskhBot, sendCskhReply, checkCskhConnection } = require('../src/components/cskh-bot-service.js');
+const StartupManager = require('./startup-manager.cjs');
+const startupManager = new StartupManager({ stagger: parseInt(process.env.STARTUP_STAGGER_MS) || 2000, minFreeMB: parseInt(process.env.MIN_FREE_MEM_MB) || 150 });
 
 const isDev = !app.isPackaged;
 
@@ -453,168 +480,32 @@ if (isDev) {
   app.setPath('userData', path.join(app.getPath('appData'), `../Local/${app.getName()}-dashboard-dev`));
 }
 
+
+
+// Kết nối tới server API để lắng nghe sự kiện
+const adminSocket = ioClient('http://localhost:2233'); // PORT của game-admin-server
+
+adminSocket.on('connect', () => {
+  console.log('✅ [Bot Process] Đã kết nối tới Game Admin Server để nhận lệnh.');
+});
+
+// Lắng nghe sự kiện gửi thông báo từ server
+adminSocket.on('send_notification', (options) => {
+  console.log('📥 [Bot Process] Nhận yêu cầu gửi thông báo:', options);
+  if (mainBotService && typeof mainBotService.sendNotification === 'function') {
+    mainBotService.sendNotification(options);
+  }
+});
+
+adminSocket.on('disconnect', () => {
+  console.log('🔌 [Bot Process] Đã mất kết nối tới Game Admin Server.');
+});
+
+
+
 let mainWindow;
-let gameAdminServerProcess = null;
-let taixiuWebServerProcess = null;
-let taixiuWebServerLogs = [];
-const MAX_TAIXIU_WEB_LOGS = 200;
-// --- TAIXIU WEB SERVER CHILD PROCESS ---
-function startTaixiuWebServerProcess() {
-  if (taixiuWebServerProcess) {
-    console.log('[TaixiuWebLauncher] Taixiu web server already running');
-    return;
-  }
-  const serverPath = path.join(__dirname, '../game/taixiu/server.js');
-  try {
-    const { fork } = require('child_process');
-    const env = { ...process.env, PORT: String(TAIXIU_WEB_PORT) };
-    delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
-    env.NODE_OPTIONS = '--max-old-space-size=512';
-    // Set PORT=4003 for taixiu web server
-    const child = fork(serverPath, { cwd: path.dirname(serverPath), env, silent: true });
-    taixiuWebServerProcess = child;
-    console.log('[TaixiuWebLauncher] Launched taixiu web server:', serverPath);
-    if (child.stdout) {
-      child.stdout.on('data', (chunk) => {
-        const text = String(chunk).trim();
-        taixiuWebServerLogs.push({ type: 'info', message: text, time: new Date() });
-        if (taixiuWebServerLogs.length > MAX_TAIXIU_WEB_LOGS) taixiuWebServerLogs.shift();
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('taixiu-web-log', { message: text, level: 'info', time: new Date() });
-      });
-    }
-    if (child.stderr) {
-      child.stderr.on('data', (chunk) => {
-        const text = String(chunk).trim();
-        taixiuWebServerLogs.push({ type: 'error', message: text, time: new Date() });
-        if (taixiuWebServerLogs.length > MAX_TAIXIU_WEB_LOGS) taixiuWebServerLogs.shift();
-        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('taixiu-web-log', { message: text, level: 'error', time: new Date() });
-      });
-    }
-    child.on('exit', (code, signal) => {
-      console.log(`[TaixiuWebLauncher] Taixiu web server exited (code=${code}, signal=${signal})`);
-      taixiuWebServerProcess = null;
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('taixiu-web-exit', { code, signal });
-      // Auto-restart in dev only
-      if (isDev) setTimeout(() => startTaixiuWebServerProcess(), 2000);
-    });
-    child.on('error', (err) => {
-      console.error('[TaixiuWebLauncher] Error launching taixiu web server:', err);
-    });
-    setTimeout(() => {
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('taixiu-web-started', { pid: child.pid });
-    }, 500);
-  } catch (e) {
-    console.error('[TaixiuWebLauncher] Failed to start taixiu web server:', e);
-  }
-}
-
-function stopTaixiuWebServerProcess() {
-  if (taixiuWebServerProcess) {
-    try { taixiuWebServerProcess.send({ type: 'shutdown' }); } catch(e){}
-    const pid = taixiuWebServerProcess.pid;
-    setTimeout(() => {
-      try { if(taixiuWebServerProcess) safeKill(taixiuWebServerProcess); } catch(e){}
-      taixiuWebServerProcess = null;
-    }, 1200);
-  }
-}
-// --- IPC HANDLERS FOR TAIXIU WEB SERVER ---
-ipcMain.handle('start-taixiu-web', async () => {
-  try {
-    startTaixiuWebServerProcess();
-    return { success: true };
-  } catch (e) {
-    console.error('[IPC] start-taixiu-web failed', e);
-    return { success: false, message: e.message };
-  }
-});
-
-ipcMain.handle('stop-taixiu-web', async () => {
-  try {
-    stopTaixiuWebServerProcess();
-    return { success: true };
-  } catch (e) {
-    console.error('[IPC] stop-taixiu-web failed', e);
-    return { success: false, message: e.message };
-  }
-});
-
-ipcMain.handle('get-taixiu-web-status', async () => {
-  try {
-    return { success: true, running: !!taixiuWebServerProcess, pid: taixiuWebServerProcess ? taixiuWebServerProcess.pid : null };
-  } catch (e) { return { success: false, message: e.message }; }
-});
-
-ipcMain.handle('get-taixiu-web-log', async () => {
-  try {
-    return { success: true, logs: taixiuWebServerLogs };
-  } catch (e) { return { success: false, message: e.message }; }
-});
 const appLogs = [];
 const MAX_LOGS = 200;
-
-// Start the taixiu game server as a child process and forward logs/events
-function startGameAdminServer() {
-  if (gameAdminServerProcess) {
-    console.log('[GameAdminLauncher] Game admin server already running');
-    return;
-  }
-
-  const serverPath = path.join(__dirname, '../game/taixiu/server.js');
-  try {
-    const { fork } = require('child_process');
-    const env = { ...process.env, PORT: String(GAME_SERVER_PORT) };
-    delete env.NODE_OPTIONS; // Xóa giới hạn RAM thừa kế
-    env.NODE_OPTIONS = '--max-old-space-size=512';
-    // Set PORT=4002 for game server
-    const child = fork(serverPath, { cwd: path.dirname(serverPath), env, silent: true });
-    gameAdminServerProcess = child;
-
-    console.log('[GameAdminLauncher] Launched game admin server:', serverPath);
-
-    if (child.stdout) {
-      child.stdout.on('data', (chunk) => {
-        const text = String(chunk).trim();
-        console.log('[GameAdminServer]', text);
-        try { if (io && io.emit) io.emit('game-server-log', { message: text, level: 'info', time: new Date() }); } catch(e){}
-      });
-    }
-    if (child.stderr) {
-      child.stderr.on('data', (chunk) => {
-        const text = String(chunk).trim();
-        console.error('[GameAdminServer][ERR]', text);
-        try { if (io && io.emit) io.emit('game-server-log', { message: text, level: 'error', time: new Date() }); } catch(e){}
-      });
-    }
-
-    child.on('message', (msg) => {
-      console.log('[GameAdminServer][MSG]', msg);
-      try { if (io && io.emit) io.emit('game-server-message', msg); } catch(e){}
-    });
-
-    child.on('exit', (code, signal) => {
-      console.log(`[GameAdminLauncher] Game admin server exited (code=${code}, signal=${signal})`);
-      gameAdminServerProcess = null;
-      try { if (io && io.emit) io.emit('game-server-exit', { code, signal }); } catch(e){}
-      // Auto-restart in dev only
-      if (isDev) {
-        setTimeout(() => startGameAdminServer(), 2000);
-      }
-    });
-
-    child.on('error', (err) => {
-      console.error('[GameAdminLauncher] Error launching game admin server:', err);
-    });
-
-    // send ready ping after short delay
-    setTimeout(() => {
-      try { if (io && io.emit) io.emit('game-server-started', { pid: child.pid }); } catch(e){}
-    }, 500);
-
-  } catch (e) {
-    console.error('[GameAdminLauncher] Failed to start game admin server:', e);
-  }
-}
 
 // Khởi động Cron Bank Service
 startBankCron(mainBotService);
@@ -646,7 +537,7 @@ const expressApp = express();
 const server = http.createServer(expressApp);
 const io = new Server(server, {
   cors: {
-    origin: `http://localhost:${DASHBOARD_PORT}`, // Chỉ cho phép dashboard
+    origin: "*", // Cho phép tất cả các client (bao gồm webgame) kết nối
     methods: ["GET", "POST"],
     credentials: true
   }
@@ -658,9 +549,20 @@ expressApp.use(express.json({ limit: '10mb' })); // Tăng giới hạn để g�
 expressApp.use('/api/support', createSupportRouter(io, sendCskhReply, checkCskhConnection));
 
 // --- API CHO GAME CLIENT (Tài Xỉu Cào/Nặn) ---
-expressApp.post('/api/login', (req, res) => {
-    // Mock login cho game client (hoặc implement logic check token thật)
-    res.json({ success: true, user: { userId: 123456, balance: 10000000, username: 'Player' } });
+expressApp.post('/api/login', async (req, res) => {
+    try {
+        const { token } = req.body;
+        if (!token) return res.json({ success: false, message: 'Token is required' });
+
+        const user = await Account.findOne({ token });
+        if (user) {
+            res.json({ success: true, user: { userId: user.userId, balance: user.balance, username: `User_${user.userId}` } });
+        } else {
+            res.json({ success: false, message: 'Invalid token' });
+        }
+    } catch (e) {
+        res.status(500).json({ success: false, message: e.message });
+    }
 });
 
 expressApp.get('/api/game/status', (req, res) => {
@@ -861,6 +763,30 @@ ipcHandle('delete-admin', async (event, id) => {
   return { success: true };
 });
 
+// Cập nhật thông tin admin (role, status, password)
+ipcHandle('update-admin', async (event, payload) => {
+  const { id } = payload || {};
+  if (!id) return { success: false, message: 'ID không hợp lệ.' };
+  const user = await User.findById(id);
+  if (!user) return { success: false, message: 'Không tìm thấy tài khoản.' };
+
+  // Không cho phép thay đổi tài khoản admin gốc
+  if (user.username === 'admin') return { success: false, message: 'Không thể chỉnh sửa tài khoản admin gốc.' };
+
+  // Cập nhật các trường cho phép
+  if (typeof payload.role === 'string') user.role = payload.role;
+  if (typeof payload.status === 'string') user.status = payload.status;
+
+  // Nếu có password mới, cập nhật
+  if (payload.password) {
+    user.password = payload.password;
+    user.isFirstLogin = false;
+  }
+
+  await user.save();
+  return { success: true };
+});
+
 ipcHandle('get-users', async () => ({ success: true, data: await Account.find({}).sort({ date: -1 }) }));
 ipcHandle('update-user', async (event, { id, data }) => {
   const { _id, __v, ...updateData } = data;
@@ -904,7 +830,12 @@ ipcHandle('update-balance', async (e, { userId, amount, action }) => {
   return { success: true, newBalance: acc.balance };
 });
 
-ipcHandle('get-balance-logs', async () => ({ success: true, data: await Transaction.find({}).sort({ date: -1 }).limit(50).lean() }));
+ipcHandle('get-balance-logs', async (event, { page = 1, limit = 20 } = {}) => {
+  const skip = (page - 1) * limit;
+  const total = await Transaction.countDocuments({});
+  const data = await Transaction.find({}).sort({ date: -1 }).skip(skip).limit(limit).lean();
+  return { success: true, data, total, totalPages: Math.ceil(total / limit) };
+});
 
 ipcHandle('get-banned-users', async () => ({ success: true, data: await Account.find({ status: 0 }).sort({ date: -1 }).lean() }));
 
@@ -973,14 +904,66 @@ ipcHandle('update-bot-status', async (event, { id, status }) => {
   return { success: true }; 
 });
 
-ipcHandle('get-deposits', async () => ({ success: true, data: await Deposit.find({}).sort({ date: -1 }).limit(100).lean() }));
-ipcHandle('get-withdraws', async () => ({ success: true, data: await Withdraw.find({}).sort({ date: -1 }).limit(100).lean() }));
+ipcHandle('get-deposits', async (event, { page = 1, limit = 20, filterType = 'active' } = {}) => {
+  let query = {};
+  if (filterType === 'active') query = { status: { $ne: 2 } }; // Hiện Chờ duyệt (0) và Thành công (1)
+  if (filterType === 'error') query = { status: 2 };           // Hiện Đã hủy (2)
+
+  const skip = (page - 1) * limit;
+  const total = await Deposit.countDocuments(query);
+  const data = await Deposit.find(query).sort({ date: -1 }).skip(skip).limit(limit).lean();
+  return { success: true, data, total, totalPages: Math.ceil(total / limit) };
+});
+
+ipcHandle('get-withdraws', async (event, { page = 1, limit = 20 } = {}) => {
+  const skip = (page - 1) * limit;
+  const total = await Withdraw.countDocuments({});
+  const withdraws = await Withdraw.find({}).sort({ date: -1 }).skip(skip).limit(limit).lean();
+  
+  const data = await Promise.all(withdraws.map(async (w) => {
+    const acc = await Account.findOne({ userId: w.userId }).select('totalDeposit totalWithdraw totalBet').lean();
+    return { ...w, accountStats: acc || { totalDeposit: 0, totalWithdraw: 0, totalBet: 0 } };
+  }));
+
+  return { success: true, data, total, totalPages: Math.ceil(total / limit) };
+});
+
 ipcHandle('handle-withdraw', async (e, { id, status }) => {
   const wit = await Withdraw.findById(id);
-  if (wit && wit.status === 0 && status === 2) {
+  if (!wit) return { success: false, message: 'Không tìm thấy đơn rút' };
+  if (wit.status !== 0) return { success: false, message: 'Đơn đã được xử lý trước đó' };
+
+  wit.status = status;
+  await wit.save();
+
+  if (status === 1) {
+    // Duyệt thành công -> Gửi thông báo
+    const msg = `✅ <b>RÚT TIỀN THÀNH CÔNG</b>\n\n` +
+                `👤 <b>Tên:</b> ${wit.accountName}\n` +
+                `🔢 <b>STK:</b> ${wit.accountNumber}\n` +
+                `💰 <b>Số tiền:</b> ${wit.amount.toLocaleString()} VNĐ\n` +
+                `🏦 <b>Ngân hàng:</b> ${wit.bankName}\n` +
+                `⏰ <b>Thời gian:</b> ${new Date(wit.date).toLocaleString('vi-VN')}`;
+    
+    if (mainBotService && typeof mainBotService.sendNotification === 'function') {
+        await mainBotService.sendNotification({
+            content: msg,
+            targetType: 'user',
+            targetValue: wit.userId
+        });
+    }
+  } else if (status === 2) {
+    // Từ chối -> Hoàn tiền
     await Account.findOneAndUpdate({ userId: wit.userId }, { $inc: { balance: wit.amount } });
+    
+    if (mainBotService && typeof mainBotService.sendNotification === 'function') {
+        await mainBotService.sendNotification({
+            content: `❌ <b>YÊU CẦU RÚT TIỀN BỊ TỪ CHỐI</b>\n\nSố tiền ${wit.amount.toLocaleString()} VNĐ đã được hoàn lại vào tài khoản.`,
+            targetType: 'user',
+            targetValue: wit.userId
+        });
+    }
   }
-  if (wit) { wit.status = status; await wit.save(); }
   return { success: true };
 });
 
@@ -1153,10 +1136,19 @@ ipcHandle('get-game-stats', async (event, gameType) => {
   }
 });
 
-ipcHandle('get-game-history', async (event, gameType) => ({ 
-  success: true, 
-  data: await TxGameHistory.find({ roomType: gameType }).sort({ date: -1 }).limit(50).lean() 
-}));
+ipcHandle('get-game-history', async (event, { gameType, page = 1, limit = 20 } = {}) => {
+  const skip = (page - 1) * limit;
+  
+  if (['cl_tele', 'tx_tele', 'dice_tele', 'slot_tele'].includes(gameType)) {
+    const total = await MiniGameHistory.countDocuments({ game: gameType });
+    const data = await MiniGameHistory.find({ game: gameType }).sort({ date: -1 }).skip(skip).limit(limit).lean();
+    return { success: true, data, total, totalPages: Math.ceil(total / limit) };
+  } else {
+    const total = await TxGameHistory.countDocuments({ roomType: gameType });
+    const data = await TxGameHistory.find({ roomType: gameType }).sort({ date: -1 }).skip(skip).limit(limit).lean();
+    return { success: true, data, total, totalPages: Math.ceil(total / limit) };
+  }
+});
 
 // Đặt kết quả Tài Xỉu (Nan/Cao/MD5/Thường)
 ipcHandle('set-tx-result', async (event, { roomType, dice1, dice2, dice3 }) => {
@@ -1427,6 +1419,9 @@ function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280, height: 800,
     show: false, // Không hiển thị ngay lập tức để tránh nháy trắng
+    autoHideMenuBar: true, // Ẩn thanh menu (File, Edit...) để giống app thật
+    title: "LasVegas Admin Dashboard", // Đặt tiêu đề cố định
+    icon: path.join(__dirname, '../build/PTNT.png'), // Set icon cho cửa sổ và taskbar
     webPreferences: { 
       nodeIntegration: true, 
       contextIsolation: false
@@ -1435,6 +1430,7 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show(); // Chỉ hiển thị khi giao diện đã sẵn sàng
+    console.log('[Dashboard] Mode:', isDev ? 'Development' : 'Production'); // Log để kiểm tra mode chạy
   });
 
   if (isDev) mainWindow.loadURL(`http://localhost:${DASHBOARD_PORT}`);
@@ -1446,6 +1442,8 @@ app.whenReady().then(async () => {
     // try { startTaixiuCaoWebProcess(); } catch (e) { console.warn('[Dashboard] startTaixiuCaoWebProcess failed:', e && e.message ? e.message : e); }
     // try { startTaixiuNanWebProcess(); } catch (e) { console.warn('[Dashboard] startTaixiuNanWebProcess failed:', e && e.message ? e.message : e); }
     // try { startExtraGameWebs(); } catch (e) { console.warn('[Dashboard] startExtraGameWebs failed:', e); }
+    // Schedule landing server start (staggered)
+    try { startupManager.schedule('landing', startLandingServer, { delay: 0, minFreeMB: 100 }); } catch (e) { console.warn('[Dashboard] schedule landing failed:', e); }
   await connectDB();
 
   // --- KHỞI ĐỘNG GAME SESSIONS (Tài Xỉu Cào/Nặn) ---
@@ -1461,13 +1459,30 @@ app.whenReady().then(async () => {
   initializeBots();
   createWindow();
 
-  if (!isDev) autoUpdater.checkForUpdatesAndNotify();
+  // Allow auto-updater to run in dev when explicitly enabled via env var
+  const enableUpdaterInDev = process.env.ENABLE_UPDATER_IN_DEV === '1' || process.env.FORCE_UPDATER_IN_DEV === '1';
+  if (!isDev || enableUpdaterInDev) {
+    try {
+      autoUpdater.checkForUpdatesAndNotify();
+      console.log('[Updater] autoUpdater.checkForUpdatesAndNotify enabled', { isDev, enableUpdaterInDev });
+    } catch (e) {
+      console.warn('[Updater] checkForUpdatesAndNotify failed:', e && e.message ? e.message : e);
+    }
+  } else {
+    console.log('[Updater] auto-updates disabled in dev (set ENABLE_UPDATER_IN_DEV=1 to enable)');
+  }
 
   // Start the API server
   const API_PORT = process.env.API_PORT || process.env.GAME_ADMIN_PORT || 4001;
   server.listen(API_PORT, () => {
       console.log(`🚀 API & WebSocket Server is running on http://localhost:${API_PORT}`);
   });
+  // Schedule heavier services to start staggered to avoid RAM/CPU spikes
+  try { startupManager.schedule('bankCron', () => startBankCron(mainBotService), { delay: 2000, minFreeMB: 120 }); } catch (e) { console.warn('[Dashboard] schedule bankCron failed:', e); }
+  // gameAdminServer launcher removed per user request
+  try { startupManager.schedule('extraGames', startExtraGameWebs, { delay: 8000, minFreeMB: 250 }); } catch (e) { console.warn('[Dashboard] schedule extraGames failed:', e); }
+  // finally run scheduled startup tasks
+  startupManager.runAll().catch(e => console.warn('[StartupManager] runAll error:', e));
   // // Start taixiu game admin server
   // try { startGameAdminServer(); } catch (e) { console.warn('[Dashboard] startGameAdminServer failed:', e && e.message ? e.message : e); }
   // // Start taixiu web server (PORT=4003)
@@ -1485,13 +1500,9 @@ app.on('before-quit', () => {
     taixiuNanWebProcess = null;
   }
   stopExtraGameWebs();
-  if (gameAdminServerProcess) {
-    try { safeKill(gameAdminServerProcess); } catch(e){}
-    gameAdminServerProcess = null;
-  }
-  if (taixiuWebServerProcess) {
-    try { safeKill(taixiuWebServerProcess); } catch(e){}
-    taixiuWebServerProcess = null;
+  if (landingServerProcess) {
+    try { safeKill(landingServerProcess); } catch(e){}
+    landingServerProcess = null;
   }
 });
 
@@ -1501,68 +1512,13 @@ process.on('SIGINT', () => {
 });
 
 // IPC for controlling the game admin child server from renderer
-ipcMain.handle('start-game-server', async () => {
-  try {
-    startGameAdminServer();
-    return { success: true };
-  } catch (e) {
-    console.error('[IPC] start-game-server failed', e);
-    return { success: false, message: e.message };
-  }
-});
-
-ipcMain.handle('stop-game-server', async () => {
-  try {
-    if (gameAdminServerProcess) {
-      try { gameAdminServerProcess.send({ type: 'shutdown' }); } catch(e){}
-      const pid = gameAdminServerProcess.pid;
-      setTimeout(() => {
-        try { process.kill(pid, 0); } catch (e) { gameAdminServerProcess = null; return { success: true }; }
-        try { process.kill(pid); } catch(e){}
-        gameAdminServerProcess = null;
-      }, 1200);
-    }
-    return { success: true };
-  } catch (e) {
-    console.error('[IPC] stop-game-server failed', e);
-    return { success: false, message: e.message };
-  }
-});
-
-ipcMain.handle('get-game-server-status', async () => {
-  try {
-    return { success: true, running: !!gameAdminServerProcess, pid: gameAdminServerProcess ? gameAdminServerProcess.pid : null };
-  } catch (e) { return { success: false, message: e.message }; }
-});
+// Game admin server launcher removed per user request
 
 // API: Start/Stop game server & web servers
-expressApp.post('/api/start-game-server', (req, res) => {
-  try {
-    startGameAdminServer();
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
-expressApp.post('/api/stop-game-server', (req, res) => {
-  try {
-    if (gameAdminServerProcess) {
-      try { gameAdminServerProcess.send({ type: 'shutdown' }); } catch(e){}
-      const pid = gameAdminServerProcess.pid;
-      setTimeout(() => {
-        try { process.kill(pid, 0); } catch (e) { gameAdminServerProcess = null; return; }
-        try { process.kill(pid); } catch(e){}
-        gameAdminServerProcess = null;
-      }, 1200);
-    }
-    res.json({ success: true });
-  } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
-  }
-});
+// Game admin server API endpoints removed per user request
 expressApp.post('/api/start-taixiucao-web', (req, res) => {
   try {
-    startTaixiuCaoWebProcess();
+    startupManager.startNow('taixiuCaoWeb').then(started => { if (!started) startTaixiuCaoWebProcess(); });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });
@@ -1578,7 +1534,7 @@ expressApp.post('/api/stop-taixiucao-web', (req, res) => {
 });
 expressApp.post('/api/start-taixiunan-web', (req, res) => {
   try {
-    startTaixiuNanWebProcess();
+    startupManager.startNow('taixiuNanWeb').then(started => { if (!started) startTaixiuNanWebProcess(); });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ success: false, message: e.message });

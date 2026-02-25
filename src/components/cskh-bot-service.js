@@ -76,7 +76,7 @@ async function sendCskhReply(userId, text, imageBase64) {
         data = data.slice(comma + 1);
       }
       const buffer = Buffer.from(data, 'base64');
-      await cskhBotInstance.sendPhoto(userId, buffer, { caption: text });
+      await cskhBotInstance.sendPhoto(userId, buffer, { caption: text }, { filename: 'image.jpg', contentType: 'image/jpeg' });
     } else {
       await cskhBotInstance.sendMessage(userId, text || '');
     }

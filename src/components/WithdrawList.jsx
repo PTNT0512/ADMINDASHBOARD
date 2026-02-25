@@ -2,16 +2,22 @@ import React, { useState, useEffect } from 'react';
 
 function WithdrawList() {
   const [withdraws, setWithdraws] = useState([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const fetchWithdraws = async () => {
+  const fetchWithdraws = async (p = 1) => {
     if (window.require) {
       const { ipcRenderer } = window.require('electron');
-      const result = await ipcRenderer.invoke('get-withdraws');
-      if (result.success) setWithdraws(result.data);
+      const result = await ipcRenderer.invoke('get-withdraws', { page: p, limit: 10 });
+      if (result.success) {
+        setWithdraws(result.data);
+        setPage(p);
+        setTotalPages(result.totalPages || 1);
+      }
     }
   };
 
-  useEffect(() => { fetchWithdraws(); }, []);
+  useEffect(() => { fetchWithdraws(1); }, []);
 
   const handleProcess = async (id, status) => {
     const action = status === 1 ? 'DUYỆT' : 'HỦY (Hoàn tiền)';
@@ -21,8 +27,12 @@ function WithdrawList() {
       const { ipcRenderer } = window.require('electron');
       const result = await ipcRenderer.invoke('handle-withdraw', { id, status });
       if (result.success) {
-        alert('Xử lý thành công!');
-        fetchWithdraws();
+        if (status === 1) {
+          alert('Đã duyệt thành công! Thông báo đã được gửi đến người dùng.');
+        } else {
+          alert('Đã hủy giao dịch và hoàn tiền cho người dùng.');
+        }
+        fetchWithdraws(page);
       } else {
         alert('Lỗi: ' + result.message);
       }
@@ -41,6 +51,7 @@ function WithdrawList() {
               <th>Số tiền</th>
               <th>Ngân hàng</th>
               <th>Thông tin nhận</th>
+              <th>Lợi nhuận</th>
               <th>Trạng thái</th>
               <th>Hành động</th>
             </tr>
@@ -55,6 +66,11 @@ function WithdrawList() {
                 <td>
                   <div>STK: <b>{item.accountNumber}</b></div>
                   <div>Tên: {item.accountName}</div>
+                </td>
+                <td style={{ fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  <div>Nạp: <b style={{ color: 'green' }}>{item.accountStats?.totalDeposit?.toLocaleString() || 0}</b></div>
+                  <div>Rút: <b style={{ color: 'red' }}>{item.accountStats?.totalWithdraw?.toLocaleString() || 0}</b></div>
+                  <div>Cược: <b style={{ color: 'blue' }}>{item.accountStats?.totalBet?.toLocaleString() || 0}</b></div>
                 </td>
                 <td>
                   {item.status === 0 && <span style={{color: 'orange', fontWeight: 'bold'}}>Chờ duyệt</span>}
@@ -73,6 +89,24 @@ function WithdrawList() {
             ))}
           </tbody>
         </table>
+      </div>
+      
+      <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'center', gap: '10px', alignItems: 'center' }}>
+        <button 
+          onClick={() => fetchWithdraws(page - 1)} 
+          disabled={page <= 1}
+          style={{ padding: '5px 15px', cursor: page <= 1 ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Trước
+        </button>
+        <span style={{ fontWeight: 'bold' }}>Trang {page} / {totalPages}</span>
+        <button 
+          onClick={() => fetchWithdraws(page + 1)} 
+          disabled={page >= totalPages}
+          style={{ padding: '5px 15px', cursor: page >= totalPages ? 'not-allowed' : 'pointer', background: '#f0f0f0', border: '1px solid #ccc', borderRadius: '4px' }}
+        >
+          Sau
+        </button>
       </div>
     </>
   );

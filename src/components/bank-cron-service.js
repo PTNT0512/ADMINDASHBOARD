@@ -107,6 +107,7 @@ function startBankCron(mainBotService) {
                                 const account = await Account.findOne({ userId: deposit.userId });
                                 if (account) {
                                     account.balance += amount;
+                                    account.totalDeposit = (account.totalDeposit || 0) + amount; // Cộng dồn tổng nạp
                                     await account.save();
 
                                     await Transaction.create({

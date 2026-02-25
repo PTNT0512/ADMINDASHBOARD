@@ -1,44 +1,34 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, Power, Server, Terminal, RefreshCw, Play, Square, Globe, Cpu } from 'lucide-react';
+import { useIpc, useToast } from './ToastContext'; // Import thêm useToast
 
 const ServerManager = () => {
   const [servers, setServers] = useState({
     gameEngine: { name: 'Game Engine (Internal)', port: 'INTERNAL', running: false, loading: false, id: 'game-engine', description: 'Hệ thống xử lý game nội bộ (Dashboard).' },
-    gameAdmin: { name: 'Game Admin Server', port: 4002, running: false, loading: false, id: 'game-server', description: 'Server xử lý logic game, kết quả, bot.' },
-    taixiuWeb: { name: 'Tài Xỉu Web Server', port: 4003, running: false, loading: false, id: 'taixiu-web', description: 'Web server hiển thị game Tài Xỉu.' },
+    landingServer: { name: 'Landing Page Server', port: 80, running: false, loading: false, id: 'landing-server', description: 'Server phục vụ trang Landing Page.' },
   });
   
   const [extraGames, setExtraGames] = useState([]);
 
-  // Helper to get ipcRenderer
-  const getIpcRenderer = () => {
-    if (window.ipcRenderer) return window.ipcRenderer;
-    if (window.require) {
-      try { return window.require('electron').ipcRenderer; } catch (e) {}
-    }
-    return null;
-  };
-
-  const ipc = getIpcRenderer();
+  const { invoke } = useIpc(); // Sử dụng hook thay vì tự lấy ipcRenderer
+  const { showToast } = useToast(); // Lấy hàm showToast
 
   const fetchStatuses = async () => {
-    if (!ipc) return;
-
     try {
         // Main Servers
-        const gameServerStatus = await ipc.invoke('get-game-server-status');
-        const taixiuWebStatus = await ipc.invoke('get-taixiu-web-status');
-        const gameEngineStatus = await ipc.invoke('get-game-engine-status');
+        // Sử dụng invoke từ useIpc để hỗ trợ cả Electron và Browser (qua API)
+        const gameEngineStatus = await invoke('get-game-engine-status') || { running: false };
+        const landingServerStatus = await invoke('get-landing-server-status') || { running: false };
+        const zalopayStatus = await invoke('get-zalopay-status') || { running: false }; // Đảm bảo tên channel khớp với server
 
         setServers(prev => ({
             ...prev,
-            gameAdmin: { ...prev.gameAdmin, running: gameServerStatus.running },
-            taixiuWeb: { ...prev.taixiuWeb, running: taixiuWebStatus.running },
             gameEngine: { ...prev.gameEngine, running: gameEngineStatus.running },
+            landingServer: { ...prev.landingServer, running: landingServerStatus.running },
         }));
 
         // Extra Games
-        const extras = await ipc.invoke('get-extra-games-status');
+        const extras = await invoke('get-extra-games-status') || [];
         setExtraGames(extras);
     } catch (error) {
         console.error("Error fetching server statuses:", error);
@@ -52,30 +42,31 @@ const ServerManager = () => {
   }, []);
 
   const toggleServer = async (key, serverInfo) => {
-    if (!ipc) return;
-    
     setServers(prev => ({ ...prev, [key]: { ...prev[key], loading: true } }));
     
     const action = serverInfo.running ? 'stop' : 'start';
     const channel = `${action}-${serverInfo.id}`;
     
     try {
-      await ipc.invoke(channel);
+      await invoke(channel);
+      showToast(`Đã gửi lệnh ${action === 'start' ? 'BẬT' : 'TẮT'} ${serverInfo.name}`, 'success');
       setTimeout(fetchStatuses, 1000);
     } catch (error) {
       console.error(`Failed to ${action} ${serverInfo.name}`, error);
+      showToast(`Lỗi khi ${action === 'start' ? 'BẬT' : 'TẮT'} ${serverInfo.name}: ${error.message}`, 'danger');
     } finally {
       setServers(prev => ({ ...prev, [key]: { ...prev[key], loading: false } }));
     }
   };
 
   const toggleExtraGame = async (gameId) => {
-    if (!ipc) return;
     try {
-      await ipc.invoke('toggle-extra-game', gameId);
+      await invoke('toggle-extra-game', gameId);
+      showToast(`Đã gửi lệnh chuyển trạng thái cho ${gameId}`, 'success');
       setTimeout(fetchStatuses, 1000);
     } catch (error) {
       console.error(`Failed to toggle ${gameId}`, error);
+      showToast(`Lỗi khi thao tác với ${gameId}: ${error.message}`, 'danger');
     }
   };
 
