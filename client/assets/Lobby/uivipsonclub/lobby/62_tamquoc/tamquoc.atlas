@@ -1,0 +1,111 @@
+
+tamquoc.png
+size: 2048,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Layer 19
+  rotate: false
+  xy: 2, 142
+  size: 729, 865
+  orig: 729, 865
+  offset: 0, 0
+  index: -1
+Layer 20
+  rotate: true
+  xy: 254, 2
+  size: 138, 200
+  orig: 138, 200
+  offset: 0, 0
+  index: -1
+Layer 21
+  rotate: false
+  xy: 1012, 329
+  size: 283, 353
+  orig: 283, 353
+  offset: 0, 0
+  index: -1
+Layer 22
+  rotate: true
+  xy: 1712, 820
+  size: 187, 330
+  orig: 187, 330
+  offset: 0, 0
+  index: -1
+Layer 23
+  rotate: false
+  xy: 733, 684
+  size: 572, 323
+  orig: 572, 323
+  offset: 0, 0
+  index: -1
+Layer 24
+  rotate: false
+  xy: 733, 271
+  size: 277, 411
+  orig: 277, 411
+  offset: 0, 0
+  index: -1
+Layer 36
+  rotate: false
+  xy: 1307, 668
+  size: 214, 89
+  orig: 214, 89
+  offset: 0, 0
+  index: -1
+Layer 37
+  rotate: false
+  xy: 456, 24
+  size: 204, 116
+  orig: 204, 116
+  offset: 0, 0
+  index: -1
+Layer 38
+  rotate: false
+  xy: 1012, 274
+  size: 218, 53
+  orig: 218, 53
+  offset: 0, 0
+  index: -1
+Layer 39
+  rotate: false
+  xy: 1712, 791
+  size: 73, 27
+  orig: 73, 27
+  offset: 0, 0
+  index: -1
+Layer 40
+  rotate: false
+  xy: 1297, 434
+  size: 100, 119
+  orig: 100, 119
+  offset: 0, 0
+  index: -1
+bg1
+  rotate: true
+  xy: 1307, 759
+  size: 248, 403
+  orig: 248, 403
+  offset: 0, 0
+  index: -1
+bg2
+  rotate: false
+  xy: 733, 97
+  size: 209, 172
+  orig: 209, 172
+  offset: 0, 0
+  index: -1
+bg3
+  rotate: false
+  xy: 1297, 555
+  size: 192, 111
+  orig: 192, 111
+  offset: 0, 0
+  index: -1
+txt11
+  rotate: false
+  xy: 2, 18
+  size: 250, 122
+  orig: 250, 122
+  offset: 0, 0
+  index: -1

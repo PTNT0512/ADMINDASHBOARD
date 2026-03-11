@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Save, Zap, RefreshCw, Clock, Users, BrainCircuit, Skull, Heart, Ban, ShieldOff, Trash2, Bot, Activity, Dice1, Dice2, Dice3, Dice4, Dice5, Dice6, Eye } from 'lucide-react';
 import io from 'socket.io-client';
+import { getDashboardApiBaseUrl } from '../utils/runtime-endpoints';
 
 const DiceIcon = ({ value, ...props }) => {
   switch (value) {
@@ -217,6 +218,7 @@ const GameControlPanel = ({
 
 const TaiXiuNan = () => {
     const gameKey = 'taixiunan';
+    const adminApiBaseUrl = getDashboardApiBaseUrl();
     const [gameState, setGameState] = useState({
         dice: [1, 1, 1],
         status: '',
@@ -224,7 +226,7 @@ const TaiXiuNan = () => {
     });
 
     useEffect(() => {
-        const socket = io("http://localhost:4001");
+        const socket = io(adminApiBaseUrl);
         socket.on('connect', () => console.log('✅ Connected to Game Admin Server (TX Nan)'));
         socket.on('stats-update', (data) => {
             if (data.game === gameKey && data.stats) {
@@ -237,7 +239,7 @@ const TaiXiuNan = () => {
     // Helper gọi API
     const callApi = async (endpoint, body) => {
         try {
-            const res = await fetch(`http://localhost:4001/api/admin/${endpoint}`, {
+            const res = await fetch(`${adminApiBaseUrl}/api/admin/${endpoint}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ game: gameKey, ...body })

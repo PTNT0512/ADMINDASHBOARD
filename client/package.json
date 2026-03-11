@@ -1,0 +1,13 @@
+{
+    "scripts":  {
+                    "postbuild:web:routes":  "powershell -ExecutionPolicy Bypass -File scripts/postbuild-web-routes.ps1",
+                    "serve:web:test":  "node scripts/test-web-server.js --port=18081",
+                    "taixiu:server":  "node server/taixiu-backend/src/index.js",
+                    "taixiu:seed":  "node server/taixiu-backend/src/scripts/seed-dev-data.js",
+                    "sync:endpoint-env":  "node scripts/sync-endpoint-config-from-env.cjs",
+                    "repair:quick-scripts":  "node scripts/repair-cocos-quick-scripts.cjs"
+                },
+    "dependencies":  {
+                         "@types/facebook-js-sdk":  "^3.3.2"
+                     }
+}

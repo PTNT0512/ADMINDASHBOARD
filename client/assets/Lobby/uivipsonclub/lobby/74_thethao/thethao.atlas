@@ -1,0 +1,62 @@
+
+thethao.png
+size: 1024,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 359, 158
+  size: 222, 62
+  orig: 222, 62
+  offset: 0, 0
+  index: -1
+2
+  rotate: true
+  xy: 583, 133
+  size: 87, 170
+  orig: 87, 170
+  offset: 0, 0
+  index: -1
+4
+  rotate: false
+  xy: 217, 24
+  size: 49, 49
+  orig: 49, 49
+  offset: 0, 0
+  index: -1
+bg
+  rotate: false
+  xy: 2, 2
+  size: 213, 218
+  orig: 213, 218
+  offset: 0, 0
+  index: -1
+tt
+  rotate: false
+  xy: 359, 92
+  size: 215, 64
+  orig: 215, 64
+  offset: 0, 0
+  index: -1
+z1
+  rotate: true
+  xy: 755, 125
+  size: 95, 132
+  orig: 95, 132
+  offset: 0, 0
+  index: -1
+z2
+  rotate: true
+  xy: 889, 119
+  size: 101, 128
+  orig: 101, 128
+  offset: 0, 0
+  index: -1
+z3
+  rotate: false
+  xy: 217, 75
+  size: 140, 145
+  orig: 140, 145
+  offset: 0, 0
+  index: -1

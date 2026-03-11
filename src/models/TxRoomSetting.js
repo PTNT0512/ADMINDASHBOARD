@@ -4,6 +4,7 @@ const txRoomSettingSchema = new mongoose.Schema({
   roomType: { type: String, required: true, unique: true }, // 'tx', 'md5', 'khongminh'
   botToken: String,
   groupId: String,
+  checkCauWebAppUrl: { type: String, default: '' },
   minBet: { type: Number, default: 1000 },
   maxBet: { type: Number, default: 10000000 },
   botBanker: { type: Boolean, default: true }, // Bot tự nhận cái nếu không có người chơi
@@ -19,6 +20,8 @@ const txRoomSettingSchema = new mongoose.Schema({
   status: { type: Number, default: 1 }, // 1: On, 0: Off
   bankerSelectionTime: { type: Number, default: 30 }, // Thời gian chọn cái (s)
   bettingTime: { type: Number, default: 60 }, // Thời gian đặt cược (s)
+  finalResultTime: { type: Number, default: 10 }, // Thời gian ra kết quả (s)
+  sessionWaitTime: { type: Number, default: 1 }, // Thời gian nghỉ giữa phiên (s)
 
   // Fields for session persistence
   sessionCounter: { type: Number, default: 202500000000 },

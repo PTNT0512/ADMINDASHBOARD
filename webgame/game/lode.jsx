@@ -1,23 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Wallet, Trophy, AlertCircle, Trash2, CheckCircle2, TrendingUp, Coins, Zap, RefreshCcw, LayoutDashboard, History, Table, Calendar, MapPin, ChevronDown, Clock, X, Star, ChevronLeft, ChevronRight, HelpCircle, Hash, Sparkles, Filter, Info, BookOpen, Plus, Minus, ReceiptText, Calculator } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, shouldPlayerWin } from './winRateControl';
 
-// --- CẤU HÌNH 10 KIỂU CHƠI ---
+// --- C?U H?NH 10 KI?U CHOI ---
 const GAME_CONFIG = {
-  lo2: { name: 'Lô 2 số', rate: 80000, price: 23000, unit: 'điểm', digits: 2, desc: 'So sánh 2 số cuối của tất cả các giải. Đánh 1 điểm (23k), trúng 1 nháy ăn 80k.' },
-  lo3: { name: 'Lô 3 số', rate: 400000, price: 13000, unit: 'điểm', digits: 3, desc: 'So sánh 3 số cuối của các giải có từ 3 chữ số trở lên.' },
-  dedau: { name: 'Đề đầu', rate: 70000, price: 1000, unit: 'nghìn', digits: 2, desc: 'Dự đoán 2 số của giải Bảy (MB) hoặc giải Tám (MN/MT).' },
-  de: { name: 'Đề Đuôi', rate: 70000, price: 1000, unit: 'nghìn', digits: 2, desc: 'Dự đoán 2 số cuối của giải Đặc biệt.' },
-  bacang: { name: 'Ba Càng', rate: 400000, price: 1000, unit: 'nghìn', digits: 3, desc: 'Dự đoán 3 số cuối của giải Đặc biệt.' },
-  dau: { name: 'Đầu', rate: 9000, price: 1000, unit: 'nghìn', digits: 1, desc: 'Dự đoán số hàng chục của giải Đặc biệt.' },
-  duoi: { name: 'Đuôi', rate: 9000, price: 1000, unit: 'nghìn', digits: 1, desc: 'Dự đoán số hàng đơn vị của giải Đặc biệt.' },
-  xien2: { name: 'Xiên 2', rate: 10000, price: 1000, unit: 'nghìn', digits: 2, min: 2, desc: 'Chọn 2 cặp số, cả 2 cặp phải cùng về.' },
-  xien3: { name: 'Xiên 3', rate: 40000, price: 1000, unit: 'nghìn', digits: 2, min: 3, desc: 'Chọn 3 cặp số, cả 3 cặp phải cùng về.' },
-  xien4: { name: 'Xiên 4', rate: 170000, price: 1000, unit: 'nghìn', digits: 2, min: 4, desc: 'Chọn 4 cặp số, cả 4 cặp phải cùng về.' },
+  lo2: { name: 'L? 2 s?', rate: 80000, price: 23000, unit: 'di?m', digits: 2, desc: 'So s?nh 2 s? cu?i c?a t?t c? c?c gi?i. ??nh 1 di?m (23k), tr?ng 1 nh?y an 80k.' },
+  lo3: { name: 'L? 3 s?', rate: 400000, price: 13000, unit: 'di?m', digits: 3, desc: 'So s?nh 3 s? cu?i c?a c?c gi?i c? t? 3 ch? s? tr? l?n.' },
+  dedau: { name: '?? d?u', rate: 70000, price: 1000, unit: 'ngh?n', digits: 2, desc: 'D? do?n 2 s? c?a gi?i B?y (MB) ho?c gi?i T?m (MN/MT).' },
+  de: { name: '?? ?u?i', rate: 70000, price: 1000, unit: 'ngh?n', digits: 2, desc: 'D? do?n 2 s? cu?i c?a gi?i ??c bi?t.' },
+  bacang: { name: 'Ba C?ng', rate: 400000, price: 1000, unit: 'ngh?n', digits: 3, desc: 'D? do?n 3 s? cu?i c?a gi?i ??c bi?t.' },
+  dau: { name: '??u', rate: 9000, price: 1000, unit: 'ngh?n', digits: 1, desc: 'D? do?n s? h?ng ch?c c?a gi?i ??c bi?t.' },
+  duoi: { name: '?u?i', rate: 9000, price: 1000, unit: 'ngh?n', digits: 1, desc: 'D? do?n s? h?ng don v? c?a gi?i ??c bi?t.' },
+  xien2: { name: 'Xi?n 2', rate: 10000, price: 1000, unit: 'ngh?n', digits: 2, min: 2, desc: 'Ch?n 2 c?p s?, c? 2 c?p ph?i c?ng v?.' },
+  xien3: { name: 'Xi?n 3', rate: 40000, price: 1000, unit: 'ngh?n', digits: 2, min: 3, desc: 'Ch?n 3 c?p s?, c? 3 c?p ph?i c?ng v?.' },
+  xien4: { name: 'Xi?n 4', rate: 170000, price: 1000, unit: 'ngh?n', digits: 2, min: 4, desc: 'Ch?n 4 c?p s?, c? 4 c?p ph?i c?ng v?.' },
 };
 
-const REGION_CONFIG = { name: 'Miền Bắc', drawTime: '18:30' };
+const REGION_CONFIG = { name: 'Mi?n B?c', drawTime: '18:30' };
 
-// Dữ liệu mẫu kết quả
+// D? li?u m?u k?t qu?
 const MOCK_RESULTS = {
   special: "58291",
   g1: "10283",
@@ -87,6 +89,12 @@ function useDraggableScroll() {
 
 export default function LoDeApp() {
   const [balance, setBalance] = useState(10000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [betType, setBetType] = useState('lo2');
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [digitTab, setDigitTab] = useState(0); 
@@ -101,7 +109,7 @@ export default function LoDeApp() {
   const selectedNumsScroll = useDraggableScroll();
   const digitTabsScroll = useDraggableScroll();
 
-  // Tự động tắt thông báo sau 3 giây
+  // T? d?ng t?t th?ng b?o sau 3 gi?y
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => {
@@ -148,33 +156,48 @@ export default function LoDeApp() {
   const handleBet = () => {
     const totalCost = calculateTotalCost();
     if (selectedNumbers.length === 0) {
-      setNotification({ type: 'error', msg: 'Chưa chọn số!' });
+      setNotification({ type: 'error', msg: 'Chua ch?n s?!' });
       return;
     }
     if (totalCost === 0) {
-      setNotification({ type: 'error', msg: 'Nhập mức cược!' });
+      setNotification({ type: 'error', msg: 'Nh?p m?c cu?c!' });
       return;
     }
     if (totalCost > balance) {
-      setNotification({ type: 'error', msg: 'Số dư không đủ!' });
+      setNotification({ type: 'error', msg: 'S? du kh?ng d?!' });
       return;
     }
 
     setIsProcessing(true);
     setTimeout(() => {
       setBalance(prev => prev - totalCost);
-      setHistory(prev => [{ id: Date.now(), type: GAME_CONFIG[betType].name, numbers: selectedNumbers.join(','), bet: totalCost, status: 'ĐANG CHỜ', date: selectedDate }, ...prev]);
-      setNotification({ type: 'success', msg: 'Đặt cược thành công!' });
+      const betId = Date.now();
+      const itemCount = GAME_CONFIG[betType].min ? 1 : selectedNumbers.length;
+      const winAmount = calculateWinAmount() * itemCount;
+      setHistory(prev => [{ id: betId, type: GAME_CONFIG[betType].name, numbers: selectedNumbers.join(','), bet: totalCost, status: '?ANG CH?', date: selectedDate }, ...prev]);
+      setNotification({ type: 'success', msg: '??t cu?c th?nh c?ng!' });
       setIsProcessing(false);
       setSelectedNumbers([]);
       setAmount('');
+
+      setTimeout(() => {
+        const isWin = shouldPlayerWin('lode');
+        if (isWin) {
+          setBalance(prev => prev + winAmount);
+        }
+        setHistory(prev => prev.map((item) => (
+          item.id === betId
+            ? { ...item, status: isWin ? 'THANG' : 'THUA', winAmount: isWin ? winAmount : 0 }
+            : item
+        )));
+      }, 1800);
     }, 600);
   };
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-zinc-100 font-sans max-w-md mx-auto flex flex-col shadow-2xl overflow-hidden border-x border-zinc-800/50 relative">
       
-      {/* Thông báo - Hiệu ứng Slide & Fade trong 3 giây */}
+      {/* Th?ng b?o - Hi?u ?ng Slide & Fade trong 3 gi?y */}
       {notification && (
           <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2 rounded-full shadow-2xl flex items-center gap-2 font-bold text-[11px] animate-in fade-in slide-in-from-top-4 out-fade-out out-slide-out-to-top-4 duration-300 border backdrop-blur-md ${
               notification.type === 'error' ? 'bg-red-500/90 border-red-400 text-white' : 'bg-green-500/90 border-green-400 text-white'
@@ -190,18 +213,18 @@ export default function LoDeApp() {
             <div className="w-8 h-8 bg-yellow-500 rounded-lg flex items-center justify-center text-black shadow-lg shadow-yellow-500/20">
                 <Trophy size={18} strokeWidth={3} />
             </div>
-            <span className="font-black italic text-xl tracking-tighter uppercase text-white">Xổ Số Pro</span>
+            <span className="font-black italic text-xl tracking-tighter uppercase text-white">X? S? Pro</span>
         </div>
         <div className="text-right">
-             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none mb-1">Ví duog</p>
-             <p className="text-lg font-black text-yellow-400 leading-none">{formatCurrency(balance).replace('₫', '')}đ</p>
+             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest leading-none mb-1">V? duog</p>
+             <p className="text-lg font-black text-yellow-400 leading-none">{formatCurrency(balance).replace('?', '')}d</p>
         </div>
       </div>
 
       <main className="flex-1 overflow-y-auto custom-scrollbar bg-zinc-950 pb-24">
         {activeTab === 'play' && (
             <div className="p-4 space-y-4">
-                {/* MENU KIỂU CHƠI */}
+                {/* MENU KI?U CHOI */}
                 <div className="relative -mx-4">
                     <div ref={menuScroll.ref} {...menuScroll.events} className="flex gap-2 overflow-x-auto px-4 pb-2 no-scrollbar cursor-grab active:cursor-grabbing touch-pan-x">
                         {Object.keys(GAME_CONFIG).map((type) => (
@@ -212,13 +235,13 @@ export default function LoDeApp() {
                     </div>
                 </div>
 
-                {/* KHU VỰC CHỌN SỐ */}
+                {/* KHU V?C CH?N S? */}
                 <div className="bg-zinc-900/50 rounded-3xl p-4 border border-zinc-800/50">
                     <div className="flex justify-between items-center mb-4 px-1">
-                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Bảng {GAME_CONFIG[betType].digits} số</span>
+                        <span className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">B?ng {GAME_CONFIG[betType].digits} s?</span>
                         {selectedNumbers.length > 0 && (
                             <button onClick={() => setSelectedNumbers([])} className="text-red-500 text-[10px] font-black uppercase flex items-center gap-1">
-                                <Trash2 size={12} /> Xóa hết
+                                <Trash2 size={12} /> X?a h?t
                             </button>
                         )}
                     </div>
@@ -246,17 +269,17 @@ export default function LoDeApp() {
                     </div>
                 </div>
 
-                {/* KHU VỰC CƯỢC */}
+                {/* KHU V?C CU?C */}
                 <div className="bg-zinc-900 rounded-[2.5rem] p-6 border border-zinc-800 shadow-2xl space-y-5 relative">
                     <div className="space-y-3">
                         <div className="flex justify-between items-end">
                              <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest flex items-center gap-2">
                                 <ReceiptText size={12} className="text-red-500" />
-                                Mức cược ({GAME_CONFIG[betType].unit})
+                                M?c cu?c ({GAME_CONFIG[betType].unit})
                              </label>
                              {amount && (
                                  <span className="text-[10px] font-bold text-zinc-400 bg-zinc-800 px-2 py-0.5 rounded-lg border border-white/5">
-                                    {formatCurrency(parseFloat(amount) * GAME_CONFIG[betType].price).replace('₫', '')}đ / con
+                                    {formatCurrency(parseFloat(amount) * GAME_CONFIG[betType].price).replace('?', '')}d / con
                                  </span>
                              )}
                         </div>
@@ -269,8 +292,8 @@ export default function LoDeApp() {
                     {selectedNumbers.length > 0 && (
                         <div className="space-y-2">
                              <div className="flex justify-between items-center px-1">
-                                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">Đang chọn ({selectedNumbers.length})</span>
-                                <span className="text-[9px] text-zinc-700 italic">Kéo để xem →</span>
+                                <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">?ang ch?n ({selectedNumbers.length})</span>
+                                <span className="text-[9px] text-zinc-700 italic">K?o d? xem ?</span>
                              </div>
                              <div ref={selectedNumsScroll.ref} {...selectedNumsScroll.events} className="flex gap-2 overflow-x-auto no-scrollbar pb-1 cursor-grab active:cursor-grabbing touch-pan-x">
                                 {selectedNumbers.map(num => (
@@ -285,24 +308,24 @@ export default function LoDeApp() {
 
                     <div className="bg-black/40 rounded-3xl border border-white/5 p-4 space-y-3">
                         <div className="flex justify-between items-center text-xs">
-                            <span className="text-zinc-500 font-bold uppercase text-[10px]">Tổng thanh toán:</span>
+                            <span className="text-zinc-500 font-bold uppercase text-[10px]">T?ng thanh to?n:</span>
                             <span className="font-black text-zinc-200">{formatCurrency(calculateTotalCost())}</span>
                         </div>
                         <div className="h-px bg-zinc-800/50" />
                         <div className="flex justify-between items-center">
                             <div className="flex items-center gap-1.5">
                                 <Calculator size={14} className="text-green-500" />
-                                <span className="text-zinc-500 font-bold uppercase text-[10px]">Thắng dự kiến / 1 số:</span>
+                                <span className="text-zinc-500 font-bold uppercase text-[10px]">Th?ng d? ki?n / 1 s?:</span>
                             </div>
                             <div className="text-right">
-                                <span className="text-lg font-black text-green-500">+{formatCurrency(calculateWinAmount()).replace('₫', '')}đ</span>
-                                <p className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">Tỷ lệ ăn x{GAME_CONFIG[betType].rate / (GAME_CONFIG[betType].price || 1)} lần</p>
+                                <span className="text-lg font-black text-green-500">+{formatCurrency(calculateWinAmount()).replace('?', '')}d</span>
+                                <p className="text-[8px] font-black text-zinc-600 uppercase tracking-tighter">T? l? an x{GAME_CONFIG[betType].rate / (GAME_CONFIG[betType].price || 1)} l?n</p>
                             </div>
                         </div>
                     </div>
 
                     <button onClick={handleBet} disabled={isProcessing} className="w-full py-5 bg-gradient-to-br from-red-600 to-red-900 rounded-3xl text-white font-black uppercase text-sm shadow-xl shadow-red-950/40 active:scale-95 transition-all flex items-center justify-center gap-2">
-                        {isProcessing ? <RefreshCcw className="animate-spin" size={20} /> : <><Zap size={18} fill="currentColor" />XÁC NHẬN CƯỢC</>}
+                        {isProcessing ? <RefreshCcw className="animate-spin" size={20} /> : <><Zap size={18} fill="currentColor" />X?C NH?N CU?C</>}
                     </button>
                 </div>
             </div>
@@ -310,10 +333,10 @@ export default function LoDeApp() {
 
         {activeTab === 'result' && (
             <div className="p-4 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {/* Tiêu đề & Chọn ngày */}
+                {/* Ti?u d? & Ch?n ng?y */}
                 <div className="flex justify-between items-end px-1">
                     <div>
-                        <h2 className="font-black text-red-500 text-xl uppercase tracking-tighter leading-none">Kết quả XSMB</h2>
+                        <h2 className="font-black text-red-500 text-xl uppercase tracking-tighter leading-none">K?t qu? XSMB</h2>
                         <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">{selectedDate}</span>
                     </div>
                     <div className="bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-xl flex items-center gap-2">
@@ -322,51 +345,51 @@ export default function LoDeApp() {
                     </div>
                 </div>
 
-                {/* BẢNG KẾT QUẢ TRUYỀN THỐNG */}
+                {/* B?NG K?T QU? TRUY?N TH?NG */}
                 <div className="bg-zinc-900 rounded-[2rem] border border-zinc-800 overflow-hidden shadow-2xl">
                     <table className="w-full text-center border-collapse">
                         <tbody>
                             <tr className="border-b border-zinc-800">
-                                <td className="w-20 py-4 bg-red-600/5 text-red-600 font-black text-[9px] uppercase border-r border-zinc-800">Đặc biệt</td>
+                                <td className="w-20 py-4 bg-red-600/5 text-red-600 font-black text-[9px] uppercase border-r border-zinc-800">??c bi?t</td>
                                 <td className="py-4 text-3xl font-black text-red-600 tracking-widest animate-pulse">{MOCK_RESULTS.special}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải nhất</td>
+                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i nh?t</td>
                                 <td className="py-3 text-xl font-black text-zinc-200">{MOCK_RESULTS.g1}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải nhì</td>
+                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i nh?</td>
                                 <td className="py-3 px-4 flex justify-around text-lg font-black text-zinc-200">{MOCK_RESULTS.g2.join(' ')}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải ba</td>
+                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i ba</td>
                                 <td className="py-3 px-2 grid grid-cols-3 gap-y-2 text-sm font-black text-zinc-200">{MOCK_RESULTS.g3.map(n => <span key={n}>{n}</span>)}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-2.5 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải tư</td>
+                                <td className="py-2.5 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i tu</td>
                                 <td className="py-2.5 px-4 flex justify-around text-base font-black text-zinc-200">{MOCK_RESULTS.g4.join(' ')}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải năm</td>
+                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i nam</td>
                                 <td className="py-3 px-2 grid grid-cols-3 gap-y-2 text-sm font-black text-zinc-200">{MOCK_RESULTS.g5.map(n => <span key={n}>{n}</span>)}</td>
                             </tr>
                             <tr className="border-b border-zinc-800">
-                                <td className="py-2.5 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải sáu</td>
+                                <td className="py-2.5 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i s?u</td>
                                 <td className="py-2.5 px-4 flex justify-around text-base font-black text-zinc-200">{MOCK_RESULTS.g6.join(' ')}</td>
                             </tr>
                             <tr>
-                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Giải bảy</td>
+                                <td className="py-3 bg-zinc-800/20 text-zinc-500 font-black text-[8px] uppercase border-r border-zinc-800">Gi?i b?y</td>
                                 <td className="py-3 px-4 flex justify-around text-lg font-black text-red-500 tracking-wider">{MOCK_RESULTS.g7.join(' ')}</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
 
-                {/* LỊCH SỬ 14 NGÀY GẦN NHẤT */}
+                {/* L?CH S? 14 NG?Y G?N NH?T */}
                 <div className="space-y-3">
                     <div className="flex items-center gap-2 px-1">
                         <History size={14} className="text-zinc-600" />
-                        <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">Lịch sử 14 ngày</h3>
+                        <h3 className="text-[10px] font-black text-zinc-600 uppercase tracking-widest">L?ch s? 14 ng?y</h3>
                     </div>
                     <div className="space-y-2 max-h-80 overflow-y-auto pr-1 custom-scrollbar">
                         {last14Days.map((date, idx) => (
@@ -381,11 +404,11 @@ export default function LoDeApp() {
                                     </div>
                                     <div className="text-left">
                                         <p className="text-xs font-black text-zinc-300">{date.split('-').reverse().join('/')}</p>
-                                        <p className="text-[8px] font-bold text-zinc-600 uppercase">Miền Bắc</p>
+                                        <p className="text-[8px] font-bold text-zinc-600 uppercase">Mi?n B?c</p>
                                     </div>
                                 </div>
                                 <div className="text-right">
-                                    <span className="text-[8px] font-black text-zinc-600 uppercase block">Đặc biệt</span>
+                                    <span className="text-[8px] font-black text-zinc-600 uppercase block">??c bi?t</span>
                                     <span className="text-xs font-mono font-black text-red-500">...{MOCK_RESULTS.special.slice(-4)}</span>
                                 </div>
                             </button>
@@ -398,13 +421,13 @@ export default function LoDeApp() {
         {activeTab === 'history' && (
             <div className="p-4 space-y-3 pb-20">
                 <div className="flex justify-between items-center px-1 mb-2">
-                    <h2 className="font-black text-yellow-500 text-xl uppercase tracking-tighter leading-none">Lịch sử cược</h2>
-                    <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{history.length} đơn cược</span>
+                    <h2 className="font-black text-yellow-500 text-xl uppercase tracking-tighter leading-none">L?ch s? cu?c</h2>
+                    <span className="text-[9px] font-black text-zinc-600 uppercase tracking-widest">{history.length} don cu?c</span>
                 </div>
                 {history.length === 0 ? (
                     <div className="py-20 text-center space-y-4 opacity-30">
                         <History size={48} className="mx-auto text-zinc-700" />
-                        <p className="text-zinc-700 font-black uppercase italic text-sm">Chưa có lịch sử cược</p>
+                        <p className="text-zinc-700 font-black uppercase italic text-sm">Chua c? l?ch s? cu?c</p>
                     </div>
                 ) : (
                     history.map(item => (
@@ -415,17 +438,17 @@ export default function LoDeApp() {
                             <div className="flex justify-between items-start relative z-10">
                                 <div>
                                     <span className="text-[10px] font-black text-red-500 uppercase tracking-tight bg-red-600/10 px-2 py-0.5 rounded-lg">{item.type}</span>
-                                    <p className="text-[9px] font-bold text-zinc-600 uppercase mt-1">{item.date} • {new Date(item.id).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                    <p className="text-[9px] font-bold text-zinc-600 uppercase mt-1">{item.date} ? {new Date(item.id).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                 </div>
                                 <span className="text-[9px] font-black px-2 py-1 rounded-md bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 uppercase animate-pulse">{item.status}</span>
                             </div>
                             <div className="flex justify-between items-end border-t border-white/5 pt-3 relative z-10">
                                 <div className="space-y-1">
-                                    <p className="text-[8px] text-zinc-600 uppercase font-black">Số đã chọn</p>
+                                    <p className="text-[8px] text-zinc-600 uppercase font-black">S? d? ch?n</p>
                                     <p className="text-xs font-mono font-black text-zinc-300 tracking-wider">{item.numbers}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[8px] text-zinc-600 uppercase font-black">Tiền cược</p>
+                                    <p className="text-[8px] text-zinc-600 uppercase font-black">Ti?n cu?c</p>
                                     <p className="text-sm font-black text-zinc-100">{formatCurrency(item.bet)}</p>
                                 </div>
                             </div>
@@ -438,9 +461,9 @@ export default function LoDeApp() {
 
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-black/95 backdrop-blur-md border-t border-zinc-800 flex py-3 px-6 shrink-0 z-50">
         {[
-            {id: 'play', icon: LayoutDashboard, label: 'Ghi Số'},
-            {id: 'result', icon: Table, label: 'Kết Quả'},
-            {id: 'history', icon: History, label: 'Lịch Sử'}
+            {id: 'play', icon: LayoutDashboard, label: 'Ghi S?'},
+            {id: 'result', icon: Table, label: 'K?t Qu?'},
+            {id: 'history', icon: History, label: 'L?ch S?'}
         ].map(tab => (
             <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex-1 flex flex-col items-center gap-1 transition-all ${activeTab === tab.id ? 'text-red-500 scale-110' : 'text-zinc-600'}`}>
                 <tab.icon size={22} strokeWidth={activeTab === tab.id ? 3 : 2} />

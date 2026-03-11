@@ -1,0 +1,83 @@
+
+maubinh.png
+size: 1024,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+0
+  rotate: false
+  xy: 362, 28
+  size: 123, 128
+  orig: 123, 128
+  offset: 0, 0
+  index: -1
+13
+  rotate: false
+  xy: 728, 96
+  size: 108, 125
+  orig: 108, 125
+  offset: 0, 0
+  index: -1
+26
+  rotate: false
+  xy: 487, 93
+  size: 122, 128
+  orig: 122, 128
+  offset: 0, 0
+  index: -1
+39
+  rotate: true
+  xy: 845, 7
+  size: 87, 114
+  orig: 87, 114
+  offset: 0, 0
+  index: -1
+9
+  rotate: true
+  xy: 487, 2
+  size: 89, 116
+  orig: 89, 116
+  offset: 0, 0
+  index: -1
+bg
+  rotate: false
+  xy: 2, 5
+  size: 211, 216
+  orig: 211, 216
+  offset: 0, 0
+  index: -1
+cay
+  rotate: false
+  xy: 215, 30
+  size: 145, 126
+  orig: 145, 126
+  offset: 0, 0
+  index: -1
+jc
+  rotate: false
+  xy: 611, 94
+  size: 115, 127
+  orig: 115, 127
+  offset: 0, 0
+  index: -1
+kc
+  rotate: true
+  xy: 728, 7
+  size: 87, 115
+  orig: 87, 115
+  offset: 0, 0
+  index: -1
+qz
+  rotate: false
+  xy: 838, 96
+  size: 106, 125
+  orig: 106, 125
+  offset: 0, 0
+  index: -1
+txt
+  rotate: false
+  xy: 215, 158
+  size: 221, 63
+  orig: 221, 63
+  offset: 0, 0
+  index: -1

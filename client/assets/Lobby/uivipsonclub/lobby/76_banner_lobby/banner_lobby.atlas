@@ -1,0 +1,48 @@
+
+banner_lobby.png
+size: 895,250
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+bg
+  rotate: true
+  xy: 2, 2
+  size: 246, 402
+  orig: 250, 405
+  offset: 2, 2
+  index: -1
+fx
+  rotate: true
+  xy: 406, 36
+  size: 212, 277
+  orig: 214, 279
+  offset: 1, 1
+  index: -1
+light
+  rotate: false
+  xy: 406, 7
+  size: 238, 27
+  orig: 241, 38
+  offset: 2, 6
+  index: -1
+logo
+  rotate: false
+  xy: 685, 81
+  size: 167, 167
+  orig: 169, 169
+  offset: 1, 1
+  index: -1
+sonclub
+  rotate: false
+  xy: 685, 5
+  size: 177, 74
+  orig: 181, 78
+  offset: 2, 2
+  index: -1
+taigame
+  rotate: true
+  xy: 854, 98
+  size: 150, 39
+  orig: 152, 41
+  offset: 1, 1
+  index: -1

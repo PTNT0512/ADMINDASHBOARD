@@ -1,0 +1,62 @@
+
+loading1.png
+size: 512,512
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+effect sang
+  rotate: false
+  xy: 316, 225
+  size: 90, 90
+  orig: 90, 90
+  offset: 0, 0
+  index: -1
+f/f1
+  rotate: false
+  xy: 2, 317
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f2
+  rotate: false
+  xy: 2, 163
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f3
+  rotate: false
+  xy: 159, 317
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f4
+  rotate: false
+  xy: 2, 9
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f5
+  rotate: false
+  xy: 159, 163
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f6
+  rotate: false
+  xy: 316, 317
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1
+f/f7
+  rotate: false
+  xy: 159, 9
+  size: 155, 152
+  orig: 155, 152
+  offset: 0, 0
+  index: -1

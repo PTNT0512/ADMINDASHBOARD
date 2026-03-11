@@ -1,8 +1,11 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const mongoose = require('mongoose');
 const amqp = require('amqplib');
 const cron = require('node-cron');
+process.env.NTBA_FIX_350 = process.env.NTBA_FIX_350 || '1';
 const TelegramBot = require('node-telegram-bot-api');
+const { patchTelegramBotEncoding } = require('../utils/telegram-bot-normalizer.js');
+patchTelegramBotEncoding(TelegramBot);
 
 const EWallet = require('../models/EWallet');
 const Deposit = require('../models/Deposit');
@@ -82,7 +85,7 @@ async function notifyZaloPaySuccess({ userId, amount, transId, balance }) {
 
 // ================== CRON ==================
 function startCronJob() {
-    console.log('🚀 ZaloPay Worker running (5s)');
+    console.log('ðŸš€ ZaloPay Worker running (5s)');
     cron.schedule('*/5 * * * * *', async () => {
         try {
             const wallets = await EWallet.find({ walletType: 'ZaloPay', status: 1 });
@@ -161,3 +164,4 @@ function startCronJob() {
         }
     });
 }
+

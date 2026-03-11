@@ -1,0 +1,251 @@
+
+rongchinh.png
+size: 207,1026
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+fire0
+  rotate: false
+  xy: 2, 39
+  size: 70, 74
+  orig: 97, 105
+  offset: 0, 2
+  index: -1
+fire1
+  rotate: true
+  xy: 2, 142
+  size: 73, 75
+  orig: 97, 105
+  offset: 0, 0
+  index: -1
+fire2
+  rotate: false
+  xy: 106, 337
+  size: 83, 70
+  orig: 97, 105
+  offset: 0, 3
+  index: -1
+fire3
+  rotate: true
+  xy: 74, 71
+  size: 69, 72
+  orig: 97, 105
+  offset: 0, 4
+  index: -1
+fire4
+  rotate: false
+  xy: 2, 242
+  size: 78, 74
+  orig: 97, 105
+  offset: 2, 6
+  index: -1
+fire5
+  rotate: true
+  xy: 112, 409
+  size: 94, 93
+  orig: 97, 105
+  offset: 1, 2
+  index: -1
+fire6
+  rotate: true
+  xy: 2, 318
+  size: 94, 102
+  orig: 97, 105
+  offset: 2, 0
+  index: -1
+fire7
+  rotate: false
+  xy: 114, 505
+  size: 86, 78
+  orig: 97, 105
+  offset: 0, 4
+  index: -1
+fire8
+  rotate: true
+  xy: 79, 142
+  size: 62, 75
+  orig: 97, 105
+  offset: 1, 2
+  index: -1
+fire9
+  rotate: true
+  xy: 106, 270
+  size: 65, 83
+  orig: 97, 105
+  offset: 0, 3
+  index: -1
+goldcoin1
+  rotate: true
+  xy: 156, 115
+  size: 53, 49
+  orig: 53, 49
+  offset: 0, 0
+  index: -1
+goldcoin2
+  rotate: true
+  xy: 153, 884
+  size: 28, 52
+  orig: 28, 52
+  offset: 0, 0
+  index: -1
+goldcoin3
+  rotate: true
+  xy: 153, 855
+  size: 27, 51
+  orig: 27, 51
+  offset: 0, 0
+  index: -1
+goldcoin4
+  rotate: true
+  xy: 160, 170
+  size: 50, 39
+  orig: 50, 39
+  offset: 0, 0
+  index: -1
+goldcoin5
+  rotate: false
+  xy: 2, 2
+  size: 53, 35
+  orig: 53, 35
+  offset: 0, 0
+  index: -1
+goldcoin6
+  rotate: true
+  xy: 160, 222
+  size: 46, 43
+  orig: 46, 43
+  offset: 0, 0
+  index: -1
+goldcoin7
+  rotate: true
+  xy: 153, 834
+  size: 19, 51
+  orig: 19, 51
+  offset: 0, 0
+  index: -1
+kho bau tu linh1
+  rotate: true
+  xy: 2, 781
+  size: 131, 149
+  orig: 131, 149
+  offset: 0, 0
+  index: -1
+kho bau tu linh10
+  rotate: false
+  xy: 2, 414
+  size: 105, 65
+  orig: 105, 65
+  offset: 0, 0
+  index: -1
+kho bau tu linh11
+  rotate: false
+  xy: 2, 563
+  size: 110, 54
+  orig: 110, 54
+  offset: 0, 0
+  index: -1
+kho bau tu linh12
+  rotate: false
+  xy: 2, 217
+  size: 76, 23
+  orig: 76, 23
+  offset: 0, 0
+  index: -1
+kho bau tu linh13
+  rotate: false
+  xy: 57, 4
+  size: 60, 33
+  orig: 60, 33
+  offset: 0, 0
+  index: -1
+kho bau tu linh14
+  rotate: false
+  xy: 2, 716
+  size: 119, 63
+  orig: 119, 63
+  offset: 0, 0
+  index: -1
+kho bau tu linh15
+  rotate: false
+  xy: 2, 481
+  size: 108, 80
+  orig: 108, 80
+  offset: 0, 0
+  index: -1
+kho bau tu linh16
+  rotate: false
+  xy: 2, 963
+  size: 186, 61
+  orig: 186, 61
+  offset: 0, 0
+  index: -1
+kho bau tu linh17
+  rotate: false
+  xy: 2, 914
+  size: 185, 47
+  orig: 186, 49
+  offset: 0, 1
+  index: -1
+kho bau tu linh2
+  rotate: true
+  xy: 82, 280
+  size: 36, 17
+  orig: 36, 17
+  offset: 0, 0
+  index: -1
+kho bau tu linh20
+  rotate: true
+  xy: 153, 770
+  size: 62, 50
+  orig: 64, 52
+  offset: 1, 1
+  index: -1
+kho bau tu linh3
+  rotate: false
+  xy: 119, 8
+  size: 58, 61
+  orig: 58, 61
+  offset: 0, 0
+  index: -1
+kho bau tu linh4
+  rotate: true
+  xy: 119, 585
+  size: 103, 86
+  orig: 103, 86
+  offset: 0, 0
+  index: -1
+kho bau tu linh5
+  rotate: false
+  xy: 2, 619
+  size: 115, 95
+  orig: 115, 95
+  offset: 0, 0
+  index: -1
+kho bau tu linh6
+  rotate: true
+  xy: 190, 963
+  size: 61, 14
+  orig: 61, 14
+  offset: 0, 0
+  index: -1
+kho bau tu linh7
+  rotate: true
+  xy: 189, 918
+  size: 43, 11
+  orig: 44, 11
+  offset: 1, 0
+  index: -1
+kho bau tu linh8
+  rotate: true
+  xy: 82, 206
+  size: 62, 76
+  orig: 62, 80
+  offset: 0, 0
+  index: -1
+kho bau tu linh9
+  rotate: true
+  xy: 123, 690
+  size: 78, 82
+  orig: 78, 82
+  offset: 0, 0
+  index: -1

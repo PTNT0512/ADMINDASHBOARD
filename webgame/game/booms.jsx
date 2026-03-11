@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Minus, Plus, Info, Bomb, Volume2, VolumeX, ChevronLeft, Target, Shield, Crosshair, Cpu, Medal } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, shouldPlayerWin } from './winRateControl';
 
-// --- CẤU HÌNH ẢNH CỦA BẠN ---
+// --- C?U H?NH ?NH C?A B?N ---
 const USER_IMAGES = {
   blueGem: "https://i.imgur.com/ZivVeVB.png", 
   greenGem: "https://i.imgur.com/2UmKKYU.png"
 };
 
-// --- MÌN QUÂN SỰ (VẼ BẰNG SVG) ---
+// --- M?N QU?N S? (V? B?NG SVG) ---
 const TacticalMine = () => (
   <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">
     <defs>
@@ -25,7 +27,7 @@ const TacticalMine = () => (
   </svg>
 );
 
-// --- Ô CHƯA MỞ (TACTICAL COVER) ---
+// --- ? CHUA M? (TACTICAL COVER) ---
 const TacticalCover = ({ isActive }) => (
   <div className="absolute inset-0 w-full h-full flex items-center justify-center overflow-hidden">
       {/* Background Texture */}
@@ -44,7 +46,7 @@ const TacticalCover = ({ isActive }) => (
   </div>
 );
 
-// --- ÂM THANH ---
+// --- ?M THANH ---
 const SFX = {
   click: 'https://assets.mixkit.co/active_storage/sfx/2568/2568-preview.mp3',
   gem:   'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3',
@@ -56,6 +58,12 @@ const SFX = {
 const TurboMinesTactical = () => {
   // --- STATE ---
   const [balance, setBalance] = useState(25000.00);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [betAmount, setBetAmount] = useState(10);
   const [mineCount, setMineCount] = useState(3);
   const [gridSize, setGridSize] = useState(5);
@@ -68,6 +76,7 @@ const TurboMinesTactical = () => {
   const [currentMultiplier, setCurrentMultiplier] = useState(1.0);
   const [currentWin, setCurrentWin] = useState(0);
   const [shake, setShake] = useState(false); 
+  const plannedWinRef = useRef(null);
 
   const playSound = (type) => {
     if (isMuted) return;
@@ -83,14 +92,14 @@ const TurboMinesTactical = () => {
     }
   }, [gridSize, gameState]);
 
-  // --- LOGIC TÍNH THƯỞNG MỚI (ĐỘ KHÓ CAO = NHÂN NHIỀU) ---
+  // --- LOGIC T?NH THU?NG M?I (?? KH? CAO = NH?N NHI?U) ---
   const calculateWin = (currentMult, isRare) => {
-      // Hệ số tăng trưởng dựa trên số lượng mìn (mineCount)
-      // Mìn càng nhiều, baseIncrease càng lớn -> Multiplier nhảy vọt nhanh hơn
-      // Ví dụ: 3 mìn -> tăng ~15%/bước. 10 mìn -> tăng ~60%/bước.
+      // H? s? tang tru?ng d?a tr?n s? lu?ng m?n (mineCount)
+      // M?n c?ng nhi?u, baseIncrease c?ng l?n -> Multiplier nh?y v?t nhanh hon
+      // V? d?: 3 m?n -> tang ~15%/bu?c. 10 m?n -> tang ~60%/bu?c.
       const difficultyFactor = 1.10 + (mineCount * 0.05); 
       
-      // Bonus Lục Bảo cũng nhân theo độ khó
+      // Bonus L?c B?o cung nh?n theo d? kh?
       const rareBonus = isRare ? (0.5 * (1 + mineCount * 0.2)) : 0; 
       
       const nextMult = (currentMult * difficultyFactor) + rareBonus;
@@ -107,7 +116,7 @@ const TurboMinesTactical = () => {
 
   const handleStart = () => {
     if (balance < betAmount) {
-        alert("THIẾU NGÂN SÁCH CHIẾN DỊCH!");
+        alert("THI?U NG?N S?CH CHI?N D?CH!");
         return;
     }
 
@@ -116,6 +125,7 @@ const TurboMinesTactical = () => {
     setGameState('PLAYING');
     setCurrentMultiplier(1.0);
     setCurrentWin(betAmount);
+    plannedWinRef.current = shouldPlayerWin('booms');
 
     const totalCells = gridSize * gridSize;
     const newGrid = Array(totalCells).fill(null).map((_, i) => ({ 
@@ -130,12 +140,12 @@ const TurboMinesTactical = () => {
         [indices[i], indices[j]] = [indices[j], indices[i]];
     }
 
-    // 1. Đặt Mìn
+    // 1. ??t M?n
     for (let i = 0; i < mineCount; i++) {
         newGrid[indices[i]].type = 'mine';
     }
 
-    // 2. Đặt Lục Bảo (Rare)
+    // 2. ??t L?c B?o (Rare)
     const safeIndices = indices.slice(mineCount);
     const rareCount = Math.floor(safeIndices.length * 0.2); 
     
@@ -151,6 +161,13 @@ const TurboMinesTactical = () => {
 
     const newGrid = [...grid];
     const cell = newGrid[index];
+    const isFirstPick = !newGrid.some((c) => c.revealed);
+
+    if (isFirstPick && plannedWinRef.current === false) {
+      cell.type = 'mine';
+    } else if (plannedWinRef.current === true && cell.type === 'mine') {
+      cell.type = 'blue';
+    }
     cell.revealed = true;
 
     if (cell.type === 'mine') {
@@ -185,7 +202,7 @@ const TurboMinesTactical = () => {
   };
 
   const getCellContent = (cell) => {
-      // 1. Chưa mở
+      // 1. Chua m?
       if (!cell.revealed) {
           if ((gameState === 'GAMEOVER' || gameState === 'VICTORY') && cell.type === 'mine') {
               return <Bomb size={gridSize > 5 ? 16 : 24} className="text-red-900/50 fill-black opacity-50" />;
@@ -196,7 +213,7 @@ const TurboMinesTactical = () => {
           return <TacticalCover isActive={gameState === 'PLAYING'} />;
       }
 
-      // 2. Mở trúng Mìn
+      // 2. M? tr?ng M?n
       if (cell.type === 'mine') {
           return (
             <div className="relative w-[80%] h-[80%] animate-bounce">
@@ -205,7 +222,7 @@ const TurboMinesTactical = () => {
           );
       }
       
-      // 3. Mở trúng Lục Bảo (Ảnh)
+      // 3. M? tr?ng L?c B?o (?nh)
       if (cell.type === 'green') {
           return (
             <div className="relative animate-pulse w-[80%] h-[80%] flex items-center justify-center">
@@ -219,7 +236,7 @@ const TurboMinesTactical = () => {
           );
       }
 
-      // 4. Mở trúng Kim Cương Xanh (Ảnh)
+      // 4. M? tr?ng Kim Cuong Xanh (?nh)
       return (
         <div className="relative animate-in zoom-in duration-300 w-[70%] h-[70%] flex items-center justify-center">
             <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-full"></div>

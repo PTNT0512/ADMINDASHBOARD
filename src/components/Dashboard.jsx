@@ -27,12 +27,16 @@ import Server1Panel from './Server1Panel';
 import Server2Panel from './Server2Panel';
 import Server3Panel from './Server3Panel';
 import { useIpc, useToast } from "./ToastContext";
-import GameManager from './GameManager.jsx';
 import TaixiuResultPanel from './TaixiuResultPanel.jsx';
-import RevenueChart from './RevenueChart.jsx';
-import TaiXiuCao from './TaiXiuCao.jsx';
-import TaiXiuNan from './TaiXiuNan.jsx';
 import ServerManager from './ServerManager.jsx';
+import SessionControlManager from './SessionControlManager.jsx';
+import WinRateManager from './WinRateManager.jsx';
+import TradingMarketControl from './TradingMarketControl.jsx';
+import LandingSettings from './LandingSettings.jsx';
+import CskhUserManager from './CskhUserManager.jsx';
+import GameMenuButtonManager from './GameMenuButtonManager.jsx';
+import BotContentManager from './BotContentManager.jsx';
+import SetTaiXiuManager from './SetTaiXiuManager.jsx';
 import { getSocket } from './socket';
 
 // Component hỗ trợ hiệu ứng nhảy số
@@ -71,55 +75,150 @@ function DashboardStats({ setActiveTab }) {
     totalWithdraw: 0,
     pendingDeposits: 0,
     pendingWithdraws: 0,
-    todayNewUsers: 0
+    todayNewUsers: 0,
+    totalBet: 0,
+    totalWin: 0,
+    totalLose: 0,
+    profitToday: 0,
+    profitWeek: 0,
+    profitMonth: 0
   });
-  const [chartData, setChartData] = useState([]);
   const [botStatus, setBotStatus] = useState({ loading: true, connected: false, message: '' });
   const [isUpdating, setIsUpdating] = useState(false);
-  const [appVersion, setAppVersion] = useState('');
+  const [appVersion, setAppVersion] = useState('-');
+  const [updateStatus, setUpdateStatus] = useState({
+    message: '',
+    checking: false,
+    available: false,
+    downloading: false,
+    downloaded: false,
+    progress: 0,
+    latestVersion: null,
+    isPortable: false,
+    isWebOnly: false,
+    manualUpdate: false,
+    releasePage: '',
+    licenseAllowsUpdates: true,
+    licenseUpdateMessage: '',
+  });
+
+  const { invoke } = useIpc();
+  const { showToast } = useToast();
 
   const fetchData = useCallback(async () => {
     setIsUpdating(true);
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      
-      // Lấy thống kê chung
-      const result = await ipcRenderer.invoke('get-dashboard-stats');
-      if (result.success) setStats(result.data);
 
-      // Kiểm tra trạng thái Bot Chính
-      const botRes = await ipcRenderer.invoke('check-main-bot-status');
-      setBotStatus({ loading: false, connected: botRes.success, message: botRes.message });
+    try {
+      const [statsRes, botRes, versionRes, updaterRes] = await Promise.all([
+        invoke('get-dashboard-stats'),
+        invoke('check-main-bot-status'),
+        invoke('get-app-version'),
+        invoke('get-update-state'),
+      ]);
 
-      // Lấy phiên bản ứng dụng
-      const ver = await ipcRenderer.invoke('get-app-version').catch(() => 'Dev');
-      setAppVersion(ver);
+      if (statsRes?.success && statsRes.data) setStats(statsRes.data);
+      setBotStatus({ loading: false, connected: !!botRes?.success, message: botRes?.message || 'Offline' });
 
-      // Mock dữ liệu biểu đồ (Giả lập dữ liệu 7 ngày)
-      const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
-      const mockData = Array.from({length: 7}, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          return {
-              label: `${days[d.getDay()]}`,
-              value: Math.floor(Math.random() * 50000000) + 10000000 // Random từ 10M đến 60M
-          };
-      });
-      setChartData(mockData);
+      if (versionRes?.success && versionRes.version) {
+        setAppVersion(String(versionRes.version));
+      }
+
+      if (updaterRes?.success && updaterRes.data) {
+        setUpdateStatus((prev) => ({ ...prev, ...updaterRes.data }));
+      }
+
+    } catch (error) {
+      console.error('Dashboard fetchData error:', error);
+    } finally {
+      setTimeout(() => setIsUpdating(false), 500);
     }
-    // Giữ hiệu ứng chạy trong 2 giây để tạo cảm giác hệ thống đang quét dữ liệu
-    setTimeout(() => setIsUpdating(false), 2000);
+  }, [invoke]);
+
+  const handleCheckUpdate = useCallback(async () => {
+    const result = await invoke('check-for-updates');
+    if (!result?.success) {
+      showToast(result?.message || 'Khong the kiem tra cap nhat', 'error');
+      if (result?.data) {
+        setUpdateStatus((prev) => ({ ...prev, ...result.data }));
+      }
+      return;
+    }
+    showToast(result.message || 'Da bat dau kiem tra cap nhat', 'info');
+    if (result?.data) {
+      setUpdateStatus((prev) => ({ ...prev, ...result.data }));
+    }
+  }, [invoke, showToast]);
+
+  const handleDownloadUpdate = useCallback(async () => {
+    const result = await invoke('download-update');
+    if (!result?.success) {
+      showToast(result?.message || 'Khong the tai cap nhat', 'error');
+      return;
+    }
+    showToast(result.message || 'Dang tai cap nhat', 'info');
+  }, [invoke, showToast]);
+
+  const handleInstallUpdate = useCallback(async () => {
+    const result = await invoke('install-update');
+    if (!result?.success) {
+      showToast(result?.message || 'Khong the cai dat cap nhat', 'error');
+      return;
+    }
+    showToast(result.message || 'Dang cai dat cap nhat', 'success');
+  }, [invoke, showToast]);
+
+  const handleOpenReleasePage = useCallback(async () => {
+    const result = await invoke('open-update-page');
+    const releaseUrl = result?.url || updateStatus.releasePage;
+    const isElectronRuntime = !!(window && window.process && window.process.versions && window.process.versions.electron);
+
+    if (result?.blocked || updateStatus.licenseAllowsUpdates === false) {
+      showToast(result?.message || updateStatus.licenseUpdateMessage || 'Key hien tai khong duoc phep cap nhat tu GitHub', 'error');
+      return;
+    }
+
+    if (!result?.success) {
+      if (!isElectronRuntime && releaseUrl) {
+        window.open(releaseUrl, '_blank', 'noopener,noreferrer');
+      }
+      showToast(result?.message || 'Khong mo duoc trang cap nhat', 'error');
+      return;
+    }
+
+    if (!isElectronRuntime && releaseUrl) {
+      window.open(releaseUrl, '_blank', 'noopener,noreferrer');
+    }
+
+    showToast(result.message || 'Da mo trang cap nhat', 'info');
+  }, [invoke, showToast, updateStatus.releasePage]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!window.require) return undefined;
+
+    let ipcRenderer;
+    try {
+      ipcRenderer = window.require('electron').ipcRenderer;
+    } catch (error) {
+      return undefined;
+    }
+
+    const onUpdateStatus = (_event, payload) => {
+      if (!payload) return;
+      setUpdateStatus((prev) => ({ ...prev, ...payload }));
+      if (payload.currentVersion) {
+        setAppVersion(String(payload.currentVersion));
+      }
+    };
+
+    ipcRenderer.on('update-status', onUpdateStatus);
+    return () => {
+      ipcRenderer.removeListener('update-status', onUpdateStatus);
+    };
   }, []);
-
-  const handleCheckUpdate = async () => {
-    if (window.require) {
-      const { ipcRenderer } = window.require('electron');
-      const res = await ipcRenderer.invoke('check-for-update');
-      alert(res.message);
-    }
-  };
-
-  useEffect(() => { fetchData(); }, [fetchData]);
 
   const Card = ({ title, value, color, suffix = "" }) => {
     const prevValue = useRef(value);
@@ -154,24 +253,84 @@ function DashboardStats({ setActiveTab }) {
 
   return (
     <>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <h1><i className="fas fa-chart-simple" style={{marginRight: '12px'}}></i>Admin Dashboard</h1>
-          {appVersion && <span style={{ marginLeft: '12px', fontSize: '13px', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>v{appVersion}</span>}
+      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <h1><i className="fas fa-chart-simple" style={{ marginRight: '12px' }}></i>Admin Dashboard</h1>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', border: '1px solid rgba(15,23,42,0.08)', borderRadius: '8px', padding: '4px 10px', background: 'var(--card-bg)' }}>
+            v{appVersion}
+          </span>
         </div>
-        <div style={{ 
-          fontSize: '12px', 
-          color: botStatus.connected ? 'var(--success)' : 'var(--danger)', 
-          border: `1px solid ${botStatus.connected ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)'}`, 
-          padding: '6px 14px', 
-          borderRadius: '8px', 
-          background: 'var(--card-bg)',
-          textAlign: 'right'
-        }}>
-          <i className={`fas ${botStatus.loading ? 'fa-spinner fa-spin' : (botStatus.connected ? 'fa-check-circle' : 'fa-exclamation-triangle')}`} style={{ marginRight: '8px' }}></i>
-          MAIN BOT: {botStatus.loading ? 'Checking...' : botStatus.message}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          <button onClick={handleCheckUpdate} className="btn" disabled={updateStatus.checking || updateStatus.licenseAllowsUpdates === false} style={{ padding: '8px 12px', opacity: updateStatus.licenseAllowsUpdates === false ? 0.6 : 1, cursor: updateStatus.licenseAllowsUpdates === false ? 'not-allowed' : 'pointer' }}>
+            <i className={`fas ${updateStatus.checking ? 'fa-spinner fa-spin' : 'fa-cloud-arrow-down'}`} style={{ marginRight: '8px' }}></i>
+            {updateStatus.licenseAllowsUpdates === false ? 'Cap nhat bi khoa' : 'Kiem tra cap nhat'}
+          </button>
+
+          {updateStatus.licenseAllowsUpdates !== false && updateStatus.available && !updateStatus.downloaded && !updateStatus.isPortable && !updateStatus.isWebOnly && !updateStatus.manualUpdate && (
+            <button onClick={handleDownloadUpdate} className="btn" style={{ padding: '8px 12px', background: '#2563eb' }}>
+              {updateStatus.downloading ? `Dang tai ${updateStatus.progress || 0}%` : 'Tai ban moi'}
+            </button>
+          )}
+
+          {updateStatus.licenseAllowsUpdates !== false && updateStatus.downloaded && !updateStatus.isPortable && !updateStatus.isWebOnly && !updateStatus.manualUpdate && (
+            <button onClick={handleInstallUpdate} className="btn" style={{ padding: '8px 12px', background: '#16a34a' }}>
+              Cai dat & khoi dong lai
+            </button>
+          )}
+
+          {updateStatus.licenseAllowsUpdates !== false && (updateStatus.isPortable || updateStatus.isWebOnly || updateStatus.manualUpdate) && updateStatus.available && (
+            <button onClick={handleOpenReleasePage} className="btn" style={{ padding: '8px 12px', background: '#f59e0b' }}>
+              {updateStatus.isWebOnly ? 'Mo GitHub Releases' : 'Mo trang tai ban moi'}
+            </button>
+          )}
+
+          <div style={{
+            fontSize: '12px',
+            color: botStatus.connected ? 'var(--success)' : 'var(--danger)',
+            border: `1px solid ${botStatus.connected ? 'rgba(52,211,153,0.12)' : 'rgba(251,113,133,0.12)'}`,
+            padding: '6px 14px',
+            borderRadius: '8px',
+            background: 'var(--card-bg)',
+            textAlign: 'right'
+          }}>
+            <i className={`fas ${botStatus.loading ? 'fa-spinner fa-spin' : (botStatus.connected ? 'fa-check-circle' : 'fa-exclamation-triangle')}`} style={{ marginRight: '8px' }}></i>
+            MAIN BOT: {botStatus.loading ? 'Checking...' : botStatus.message}
+          </div>
         </div>
       </header>
+
+      {updateStatus.licenseAllowsUpdates === false && updateStatus.licenseUpdateMessage && (
+        <div style={{
+          marginTop: '10px',
+          marginBottom: '14px',
+          fontSize: '13px',
+          color: '#b91c1c',
+          background: '#fee2e2',
+          border: '1px solid #fecaca',
+          padding: '10px 12px',
+          borderRadius: '8px'
+        }}>
+          {updateStatus.licenseUpdateMessage}
+        </div>
+      )}
+
+      {updateStatus.message && (
+        <div style={{
+          marginTop: '10px',
+          marginBottom: '14px',
+          fontSize: '13px',
+          color: updateStatus.error ? '#b91c1c' : '#0f172a',
+          background: updateStatus.error ? '#fee2e2' : '#e0f2fe',
+          border: `1px solid ${updateStatus.error ? '#fecaca' : '#bae6fd'}`,
+          padding: '10px 12px',
+          borderRadius: '8px'
+        }}>
+          {updateStatus.message}
+          {updateStatus.latestVersion ? ` (Latest: ${updateStatus.latestVersion})` : ''}
+        </div>
+      )}
+
       <div className="settings-container" style={{ background: 'transparent', border: 'none', boxShadow: 'none', padding: '0 24px' }}>
         
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px', marginBottom: '30px' }}>
@@ -192,10 +351,6 @@ function DashboardStats({ setActiveTab }) {
             suffix=" VNĐ"
           />
         </div>
-
-        {/* Biểu đồ doanh thu */}
-        <RevenueChart data={chartData} />
-
         <h3 style={{ marginBottom: '15px', color: 'var(--text)', textTransform: 'none', letterSpacing: '0.2px' }}>Báo Cáo Giao Dịch</h3>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
           <Card 
@@ -222,11 +377,48 @@ function DashboardStats({ setActiveTab }) {
           />
         </div>
 
+        <h3 style={{ marginTop: '24px', marginBottom: '15px', color: 'var(--text)', textTransform: 'none', letterSpacing: '0.2px' }}>Báo Cáo Cược</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '20px' }}>
+          <Card
+            title="Tổng Cược"
+            value={stats.totalBet}
+            color="#0284c7"
+            suffix=" VNĐ"
+          />
+          <Card
+            title="Tổng Thắng"
+            value={stats.totalWin}
+            color="#16a34a"
+            suffix=" VNĐ"
+          />
+          <Card
+            title="Tổng Thua"
+            value={stats.totalLose}
+            color="#b91c1c"
+            suffix=" VNĐ"
+          />
+          <Card
+            title="Lợi Nhuận Ngày"
+            value={stats.profitToday}
+            color={stats.profitToday >= 0 ? '#16a34a' : '#b91c1c'}
+            suffix=" VNĐ"
+          />
+          <Card
+            title="Lợi Nhuận Tuần"
+            value={stats.profitWeek}
+            color={stats.profitWeek >= 0 ? '#16a34a' : '#b91c1c'}
+            suffix=" VNĐ"
+          />
+          <Card
+            title="Lợi Nhuận Tháng"
+            value={stats.profitMonth}
+            color={stats.profitMonth >= 0 ? '#16a34a' : '#b91c1c'}
+            suffix=" VNĐ"
+          />
+        </div>
+
         <div style={{ marginTop: '30px', textAlign: 'center' }}>
           <button onClick={fetchData} className="btn"><i className="fas fa-sync-alt" style={{marginRight: '10px'}}></i>Refresh</button>
-          <button onClick={handleCheckUpdate} className="btn" style={{ marginLeft: '15px', backgroundColor: '#9c27b0' }}>
-            <i className="fas fa-cloud-download-alt" style={{marginRight: '10px'}}></i>Cập nhật phiên bản
-          </button>
         </div>
 
       </div>
@@ -245,7 +437,9 @@ function Dashboard({ onLogout }) {
   const [isTransactionExpanded, setIsTransactionExpanded] = useState(false);
   const [isMinigameExpanded, setIsMinigameExpanded] = useState(false);
   const [isTxRoomExpanded, setIsTxRoomExpanded] = useState(false);
-  const [isGamesExpanded, setIsGamesExpanded] = useState(false);
+  const [isSetTaiXiuExpanded, setIsSetTaiXiuExpanded] = useState(false);
+  const [isGameHistoryExpanded, setIsGameHistoryExpanded] = useState(false);
+  const [isGameHistory2Expanded, setIsGameHistory2Expanded] = useState(false);
   const [isTaiXiuCaoNanExpanded, setIsTaiXiuCaoNanExpanded] = useState(false);
 
   // States cho các component con
@@ -316,18 +510,50 @@ function Dashboard({ onLogout }) {
 
   const handleSettingChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setSettings(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    const nextValue = type === 'checkbox'
+      ? checked
+      : (type === 'number' ? (value === '' ? '' : Number(value)) : value);
+
+    if (!name.includes('.')) {
+      setSettings(prev => ({
+        ...prev,
+        [name]: nextValue
+      }));
+      return;
+    }
+
+    const path = name.split('.');
+    setSettings(prev => {
+      const next = { ...(prev || {}) };
+      let cursor = next;
+
+      for (let i = 0; i < path.length - 1; i += 1) {
+        const key = path[i];
+        const current = cursor[key];
+        cursor[key] = current && typeof current === 'object' ? { ...current } : {};
+        cursor = cursor[key];
+      }
+
+      cursor[path[path.length - 1]] = nextValue;
+      return next;
+    });
   };
 
   const handleSaveSettings = async () => {
     const result = await invoke('save-settings', settings);
     if (result.success) {
-      alert('Lưu cài đặt thành công!');
+      alert('Luu cai dat thanh cong!');
     } else {
       alert(result.message);
+    }
+  };
+
+  const handleOptimizeNow = async () => {
+    const result = await invoke('optimize-resources-now');
+    if (result?.success) {
+      showToast(result.message || 'Da toi uu tai nguyen.', 'success');
+    } else {
+      showToast(result?.message || 'Khong the toi uu tai nguyen.', 'error');
     }
   };
 
@@ -357,10 +583,16 @@ function Dashboard({ onLogout }) {
         
         isTxRoomExpanded={isTxRoomExpanded}
         setIsTxRoomExpanded={setIsTxRoomExpanded}
+
+        isSetTaiXiuExpanded={isSetTaiXiuExpanded}
+        setIsSetTaiXiuExpanded={setIsSetTaiXiuExpanded}
         
-        isGamesExpanded={isGamesExpanded}
-        setIsGamesExpanded={setIsGamesExpanded}
+        isGameHistoryExpanded={isGameHistoryExpanded}
+        setIsGameHistoryExpanded={setIsGameHistoryExpanded}
         
+        isGameHistory2Expanded={isGameHistory2Expanded}
+        setIsGameHistory2Expanded={setIsGameHistory2Expanded}
+
         isTaiXiuCaoNanExpanded={isTaiXiuCaoNanExpanded}
         setIsTaiXiuCaoNanExpanded={setIsTaiXiuCaoNanExpanded}
         
@@ -368,6 +600,58 @@ function Dashboard({ onLogout }) {
       />
       
       <main className="dashboard-content">
+        {(() => {
+          const historyTabMap = {
+            history_tx: 'tx',
+            history_khongminh: 'khongminh',
+            history_md5: 'md5',
+            history_taixiucao: 'taixiucao',
+            history_taixiunan: 'taixiunan',
+            history_cl_tele: 'cl_tele',
+            history_tx_tele: 'tx_tele',
+            history_dice_tele: 'dice_tele',
+            history_slot_tele: 'slot_tele',
+          };
+          const selectedHistoryGame = historyTabMap[activeTab];
+          return selectedHistoryGame ? (
+            <GameHistory initialGameType={selectedHistoryGame} lockGameType />
+          ) : null;
+        })()}
+        {(() => {
+          const historyTabMap2 = {
+            history2_taixiucao: 'taixiucao',
+            history2_taixiunan: 'taixiunan',
+            history2_aviator: 'aviator',
+            history2_baccarat: 'baccarat',
+            history2_xocdia: 'xocdia',
+            history2_rongho: 'rongho',
+            history2_booms: 'booms',
+            history2_plinko: 'plinko',
+            history2_xeng: 'xeng',
+            history2_roulette: 'roulette',
+            history2_trading: 'trading',
+            history2_lottery: 'lottery',
+            history2_lode: 'lode',
+            history2_xoso: 'xoso',
+            history2_xoso1phut: 'xoso1phut',
+          };
+          const selectedHistoryGame2 = historyTabMap2[activeTab];
+          return selectedHistoryGame2 ? (
+            <GameHistory initialGameType={selectedHistoryGame2} lockGameType panelTitle="History Game 2" initialView="player" />
+          ) : null;
+        })()}
+        {(() => {
+          const setTaiXiuTabMap = {
+            set_taixiu_double: 'double',
+            set_taixiu_md5: 'md5',
+            set_minipoker: 'minipoker',
+            set_baucua: 'baucua',
+            set_xocdia: 'xocdia',
+          };
+          const selectedSetGame = setTaiXiuTabMap[activeTab];
+          return selectedSetGame ? <SetTaiXiuManager game={selectedSetGame} /> : null;
+        })()}
+
         {activeTab === 'dashboard' && <DashboardStats setActiveTab={setActiveTab} />}
         
         {/* Đại lý */}
@@ -382,24 +666,18 @@ function Dashboard({ onLogout }) {
         {activeTab === 'blacklist' && <Blacklist />}
 
         {/* Nạp Rút */}
-        {activeTab === 'deposits' && <DepositList />}
-        {activeTab === 'withdraws' && <WithdrawList />}
+        {activeTab === 'deposits' && <DepositList mode="history" />}
+        {activeTab === 'deposit_error_orders' && <DepositList mode="error" />}
+        {activeTab === 'withdraw_orders' && <WithdrawList mode="orders" />}
+        {activeTab === 'withdraws' && <WithdrawList mode="history" />}
         {activeTab === 'game_history' && <GameHistory />}
 
         {/* Ngân hàng */}
         {activeTab === 'bank_auto' && <BankAuto invoke={invoke} showToast={showToast} />}
         {activeTab === 'e_wallet' && <EWallet />}
 
-        {/* Trò chơi */}
-        {activeTab === 'taixiu_cao' && <TaiXiuCao />}
-        {activeTab === 'taixiu_nan' && <TaiXiuNan />}
-
-        {/* Cấu hình Game & Kết quả */}
-        {activeTab === 'game_config' && <GameManager />}
-
         {/* TX Room */}
         {activeTab === 'tx_room' && <TxRoomPanel title="Tài Xỉu Room" roomType="tx" />}
-        {activeTab === 'tx_md5_room' && <TxRoomPanel title="Tài Xỉu MD5 Room" roomType="md5" />}
         {activeTab === 'tx_khongminh_room' && <TxRoomPanel title="Tài Xỉu Khổng Minh Room 1" roomType="khongminh" />}
 
         {/* Minigame */}
@@ -415,6 +693,13 @@ function Dashboard({ onLogout }) {
         {/* Hệ thống */}
         {activeTab === 'bot_manager' && <BotManager />}
         {activeTab === 'server_manager' && <ServerManager />}
+        {activeTab === 'session_control' && <SessionControlManager />}
+        {activeTab === 'trading_market_control' && <TradingMarketControl />}
+        {activeTab === 'win_rate_control' && <WinRateManager />}
+        {activeTab === 'landing_settings' && <LandingSettings />}
+        {activeTab === 'game_menu_buttons' && <GameMenuButtonManager />}
+        {activeTab === 'bot_content' && <BotContentManager />}
+        {activeTab === 'cskh_users' && <CskhUserManager />}
         {activeTab === 'game_server' && <GameServerPanel />}
         {activeTab === 'server_1' && <Server1Panel />}
         {activeTab === 'server_2' && <Server2Panel />}
@@ -425,6 +710,7 @@ function Dashboard({ onLogout }) {
             settings={settings} 
             onSettingChange={handleSettingChange} 
             onSaveSettings={handleSaveSettings} 
+            onOptimizeNow={handleOptimizeNow}
           />
         )}
       </main>
@@ -433,3 +719,5 @@ function Dashboard({ onLogout }) {
 }
 
 export default Dashboard;
+
+

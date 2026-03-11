@@ -23,6 +23,14 @@ async function startOrUpdateBot(config) {
     }
 
     const { roomType, status } = config;
+    const botToken = String(config.botToken || '').trim();
+
+    // Guard: tránh ghi đè worker đang chạy bằng config thiếu token.
+    if (status === 1 && !botToken) {
+        console.error(`[Bot Manager] Bỏ qua cập nhật phòng '${roomType}': thiếu Bot Token.`);
+        return;
+    }
+
     workerConfigs[roomType] = config; // Cập nhật config mới nhất
 
     // 1. Nếu worker cho phòng này đang chạy, hãy dừng nó trước

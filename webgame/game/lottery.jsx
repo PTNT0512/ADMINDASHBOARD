@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { 
+import {
+
   Wallet, 
   History, 
   LayoutDashboard, 
@@ -15,6 +16,8 @@ import {
   ChevronUp,
   Info
 } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, pickByWinRate } from './winRateControl';
 
 // --- CONFIGURATION ---
 const CHIPS = [
@@ -32,16 +35,16 @@ const BET_OPTIONS = {
   },
   size: {
     items: [
-      { id: 'small', label: 'XỈU', rate: 1.95, color: 'from-cyan-500/20 to-blue-500/20 border-blue-500/50' },
-      { id: 'large', label: 'TÀI', rate: 1.95, color: 'from-orange-500/20 to-red-500/20 border-red-500/50' },
-      { id: 'draw', label: 'HÒA', rate: 5, color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/50' }
+      { id: 'small', label: 'X?U', rate: 1.95, color: 'from-cyan-500/20 to-blue-500/20 border-blue-500/50' },
+      { id: 'large', label: 'T?I', rate: 1.95, color: 'from-orange-500/20 to-red-500/20 border-red-500/50' },
+      { id: 'draw', label: 'H?A', rate: 5, color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/50' }
     ],
   },
   color: {
     items: [
       { id: 'green', label: 'XANH', color: 'bg-emerald-500', rate: 1.95 },
-      { id: 'purple', label: 'TÍM', color: 'bg-purple-500', rate: 5 },
-      { id: 'red', label: 'ĐỎ', color: 'bg-rose-500', rate: 1.95 }
+      { id: 'purple', label: 'T?M', color: 'bg-purple-500', rate: 5 },
+      { id: 'red', label: '??', color: 'bg-rose-500', rate: 1.95 }
     ],
   }
 };
@@ -58,6 +61,12 @@ const shortMoney = (amount: number) => {
 
 export default function App() {
   const [balance, setBalance] = useState(10000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [activeTab, setActiveTab] = useState<'play' | 'history'>('play');
   const [timeLeft, setTimeLeft] = useState(30);
   const [drawCounter, setDrawCounter] = useState(1001); 
@@ -105,9 +114,40 @@ export default function App() {
   const handleDraw = () => {
     setIsDrawing(true);
     setTimeout(() => {
-      const luckyNumbers = Array.from({ length: 6 }, () => Math.floor(Math.random() * 10));
+      const evalWinForDigit = (digit) => {
+        let totalWin = 0;
+        history.forEach((bet) => {
+          if (bet.status !== 'pending') return;
+          let isWin = false;
+          if (bet.category === 'numbers') isWin = parseInt(bet.valueId, 10) === digit;
+          else if (bet.category === 'size') {
+            if (bet.valueId === 'small') isWin = digit >= 0 && digit <= 4;
+            else if (bet.valueId === 'large') isWin = digit >= 6 && digit <= 9;
+            else if (bet.valueId === 'draw') isWin = digit === 5;
+          } else if (bet.category === 'color') {
+            if (bet.valueId === 'green') isWin = digit >= 0 && digit <= 4;
+            else if (bet.valueId === 'purple') isWin = digit === 5;
+            else if (bet.valueId === 'red') isWin = digit >= 6 && digit <= 9;
+          }
+          if (isWin) totalWin += Math.floor(bet.amount * bet.rate);
+        });
+        return totalWin;
+      };
+
+      const winDigits = [];
+      const loseDigits = [];
+      for (let d = 0; d <= 9; d += 1) {
+        if (evalWinForDigit(d) > 0) winDigits.push(d);
+        else loseDigits.push(d);
+      }
+
+      const forcedLastDigit = pickByWinRate('lottery', winDigits, loseDigits);
+      const lastDigit = Number.isInteger(forcedLastDigit) ? forcedLastDigit : Math.floor(Math.random() * 10);
+      const luckyNumbers = Array.from({ length: 5 }, () => Math.floor(Math.random() * 10));
+      const partial = luckyNumbers.reduce((a, b) => a + b, 0);
+      const finalDigit = (lastDigit - (partial % 10) + 10) % 10;
+      luckyNumbers.push(finalDigit);
       const sum = luckyNumbers.reduce((a, b) => a + b, 0);
-      const lastDigit = sum % 10;
       const resultObj = { numbers: luckyNumbers, sum, lastDigit, time: new Date().toLocaleTimeString(), roundId: drawCounter };
       
       setLastResult(resultObj);
@@ -232,7 +272,7 @@ export default function App() {
             <div className="w-full h-full bg-[#0a0a0c] rounded-[14px] flex items-center justify-center font-black text-indigo-400">D</div>
           </div>
           <div className="flex flex-col">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Người chơi</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Ngu?i choi</span>
             <span className="text-xs font-black text-white italic">ID:1234</span>
           </div>
         </div>
@@ -252,7 +292,7 @@ export default function App() {
               <div className="flex items-center gap-2 bg-black/40 px-3 py-1 rounded-full border border-white/5">
                 <div className={`w-2 h-2 rounded-full ${isDrawing ? 'bg-yellow-500 animate-ping' : 'bg-rose-500 shadow-[0_0_8px_red]'}`}></div>
                 <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">
-                  {isDrawing ? 'Đang quay số...' : `Phiên mới: 00:${timeLeft.toString().padStart(2, '0')}`}
+                  {isDrawing ? '?ang quay s?...' : `Phi?n m?i: 00:${timeLeft.toString().padStart(2, '0')}`}
                 </span>
               </div>
               <Sparkles size={16} className="text-indigo-400 animate-pulse" />
@@ -269,12 +309,12 @@ export default function App() {
 
               <div className="flex items-center justify-center gap-8 bg-gradient-to-b from-black/60 to-black/20 w-full py-4 rounded-[2rem] border border-white/5 shadow-inner">
                 <div className="text-center">
-                  <p className="text-[9px] font-black text-zinc-500 uppercase mb-1 tracking-tighter italic">Tổng điểm</p>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase mb-1 tracking-tighter italic">T?ng di?m</p>
                   <p className="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-t from-zinc-400 to-white">{isDrawing ? '??' : lastResult.sum}</p>
                 </div>
                 <div className="w-[1px] h-12 bg-gradient-to-b from-transparent via-zinc-700 to-transparent"></div>
                 <div className="text-center">
-                  <p className="text-[9px] font-black text-zinc-500 uppercase mb-1 tracking-tighter italic">Số cuối</p>
+                  <p className="text-[9px] font-black text-zinc-500 uppercase mb-1 tracking-tighter italic">S? cu?i</p>
                   <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl font-black shadow-2xl transition-all duration-700 ${isDrawing ? 'bg-zinc-800 scale-90 rotate-12' : `${getBadgeStyle(lastResult.lastDigit)} scale-100 rotate-0`}`}>
                     {isDrawing ? '?' : lastResult.lastDigit}
                   </div>
@@ -286,11 +326,11 @@ export default function App() {
 
         {activeTab === 'play' ? (
           <div className="space-y-8 pb-10">
-            {/* TÀI XỈU */}
+            {/* T?I X?U */}
             <section>
               <div className="flex items-center gap-2 mb-4 px-2">
                 <LayoutDashboard size={14} className="text-indigo-400" />
-                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">Tài - Xỉu - Hòa</h3>
+                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">T?i - X?u - H?a</h3>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {BET_OPTIONS.size.items.map(item => (
@@ -316,7 +356,7 @@ export default function App() {
             <section>
               <div className="flex items-center gap-2 mb-4 px-2">
                 <CircleDot size={14} className="text-rose-400" />
-                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">Màu chiến thắng</h3>
+                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">M?u chi?n th?ng</h3>
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {BET_OPTIONS.color.items.map(item => (
@@ -337,7 +377,7 @@ export default function App() {
             <section>
               <div className="flex items-center gap-2 mb-4 px-2">
                 <Zap size={14} className="text-yellow-400" />
-                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">Số cuối chính xác</h3>
+                <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-[0.2em]">S? cu?i ch?nh x?c</h3>
               </div>
               <div className="grid grid-cols-5 gap-2.5">
                 {BET_OPTIONS.numbers.items.map(num => (
@@ -366,16 +406,16 @@ export default function App() {
                 <div className="flex items-center justify-between mb-4">
                    <div className="flex items-center gap-2">
                      <TrendingUp size={14} className="text-indigo-400" />
-                     <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Bảng soi cầu (50 phiên)</h3>
+                     <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">B?ng soi c?u (50 phi?n)</h3>
                    </div>
                    <div className="flex gap-3">
                       <div className="flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                        <span className="text-[8px] font-black text-zinc-500">TÀI</span>
+                        <span className="text-[8px] font-black text-zinc-500">T?I</span>
                       </div>
                       <div className="flex items-center gap-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                        <span className="text-[8px] font-black text-zinc-500">XỈU</span>
+                        <span className="text-[8px] font-black text-zinc-500">X?U</span>
                       </div>
                    </div>
                 </div>
@@ -398,15 +438,15 @@ export default function App() {
 
                 <div className="flex gap-2">
                    <div className="flex-1 bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center">
-                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">Tài (6-9)</span>
+                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">T?i (6-9)</span>
                       <span className="text-sm font-black text-rose-500">{stats.total > 0 ? Math.round((stats.large / stats.total) * 100) : 0}%</span>
                    </div>
                    <div className="flex-1 bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center">
-                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">Xỉu (0-4)</span>
+                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">X?u (0-4)</span>
                       <span className="text-sm font-black text-emerald-500">{stats.total > 0 ? Math.round((stats.small / stats.total) * 100) : 0}%</span>
                    </div>
                    <div className="flex-1 bg-black/40 p-3 rounded-2xl border border-white/5 flex flex-col items-center">
-                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">Hòa (5)</span>
+                      <span className="text-[8px] font-black text-zinc-500 uppercase mb-1">H?a (5)</span>
                       <span className="text-sm font-black text-purple-500">{stats.total > 0 ? Math.round((stats.draw / stats.total) * 100) : 0}%</span>
                    </div>
                 </div>
@@ -417,14 +457,14 @@ export default function App() {
                 <div className="flex items-center justify-between px-2">
                    <div className="flex items-center gap-2">
                       <History size={14} className="text-zinc-500" />
-                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Lịch sử cá nhân</h3>
+                      <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">L?ch s? c? nh?n</h3>
                    </div>
-                   <span className="text-[8px] font-black text-zinc-600 italic uppercase">Bấm để xem chi tiết</span>
+                   <span className="text-[8px] font-black text-zinc-600 italic uppercase">B?m d? xem chi ti?t</span>
                 </div>
                 
                 {sortedRounds.length === 0 ? (
                   <div className="py-12 text-center opacity-20 border-2 border-dashed border-white/5 rounded-3xl">
-                    <p className="text-[10px] font-black uppercase tracking-[0.4em]">Chưa có dữ liệu</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.4em]">Chua c? d? li?u</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -434,7 +474,7 @@ export default function App() {
                       
                       return (
                         <div key={round.roundId} className="bg-zinc-900/40 border border-white/5 rounded-2xl overflow-hidden transition-all duration-300">
-                          {/* Round Header (Dòng tóm tắt) */}
+                          {/* Round Header (D?ng t?m t?t) */}
                           <button 
                             onClick={() => setExpandedRound(isExpanded ? null : round.roundId)}
                             className={`w-full flex items-center justify-between p-4 active:bg-white/5 transition-colors ${isExpanded ? 'bg-white/5' : ''}`}
@@ -442,7 +482,7 @@ export default function App() {
                             <div className="flex items-center gap-4">
                               <span className="text-xs font-black text-zinc-500 italic">#{round.roundId}</span>
                               <div className="flex flex-col items-start">
-                                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-tighter">Tổng cược</span>
+                                <span className="text-[10px] font-black text-zinc-400 uppercase tracking-tighter">T?ng cu?c</span>
                                 <span className="text-xs font-black text-white">{shortMoney(round.totalBet)}</span>
                               </div>
                             </div>
@@ -450,10 +490,10 @@ export default function App() {
                             <div className="flex items-center gap-4">
                               <div className="flex flex-col items-end">
                                 {round.status === 'pending' ? (
-                                  <span className="text-[10px] font-black text-yellow-500 animate-pulse uppercase">Đang đợi...</span>
+                                  <span className="text-[10px] font-black text-yellow-500 animate-pulse uppercase">?ang d?i...</span>
                                 ) : (
                                   <>
-                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter">Thắng/Thua</span>
+                                    <span className="text-[10px] font-black text-zinc-500 uppercase tracking-tighter">Th?ng/Thua</span>
                                     <span className={`text-xs font-black ${netProfit > 0 ? 'text-emerald-500' : netProfit < 0 ? 'text-rose-500' : 'text-zinc-400'}`}>
                                       {netProfit > 0 ? '+' : ''}{shortMoney(netProfit)}
                                     </span>
@@ -464,13 +504,13 @@ export default function App() {
                             </div>
                           </button>
 
-                          {/* Round Details (Sổ ra chi tiết) */}
+                          {/* Round Details (S? ra chi ti?t) */}
                           {isExpanded && (
                             <div className="px-4 pb-4 pt-2 border-t border-white/5 bg-black/20 animate-in slide-in-from-top-2 duration-200">
                                <div className="flex items-center justify-between mb-4 bg-zinc-800/30 p-2 rounded-xl border border-white/5">
                                   <div className="flex items-center gap-2">
                                      <Info size={12} className="text-indigo-400" />
-                                     <span className="text-[10px] font-black text-zinc-400 uppercase">Kết quả phiên:</span>
+                                     <span className="text-[10px] font-black text-zinc-400 uppercase">K?t qu? phi?n:</span>
                                   </div>
                                   {round.status === 'completed' ? (
                                     <div className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black ${getBadgeStyle(round.result)}`}>
@@ -503,7 +543,7 @@ export default function App() {
                     })}
                   </div>
                 )}
-                <p className="text-center text-[9px] font-bold text-zinc-600 uppercase tracking-widest pt-4">Tự động xóa lịch sử sau 24h</p>
+                <p className="text-center text-[9px] font-bold text-zinc-600 uppercase tracking-widest pt-4">T? d?ng x?a l?ch s? sau 24h</p>
              </section>
           </div>
         )}
@@ -531,7 +571,7 @@ export default function App() {
           <div className="flex-[1.5] bg-white/5 border border-white/10 rounded-[2rem] flex items-center justify-between px-6 shadow-inner relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <div className="flex flex-col relative z-10">
-              <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">Đang rải ({pendingBets.size})</span>
+              <span className="text-[8px] font-black text-zinc-500 uppercase tracking-widest mb-0.5">?ang r?i ({pendingBets.size})</span>
               <span className="text-xl font-black text-yellow-500 tabular-nums">{formatVND(totalPendingAmount)}</span>
             </div>
             {pendingBets.size > 0 && (
@@ -546,7 +586,7 @@ export default function App() {
             disabled={pendingBets.size === 0 || totalPendingAmount > balance || isDrawing}
             className={`flex-1 rounded-[2rem] font-black uppercase text-[10px] tracking-[0.2em] transition-all shadow-2xl flex items-center justify-center gap-2 ${pendingBets.size === 0 || isDrawing ? 'bg-zinc-800 text-zinc-600' : 'bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white shadow-indigo-600/40 active:scale-95'}`}
           >
-            {isDrawing ? 'ĐỢI...' : <><CheckCircle2 size={16} /> CƯỢC</>}
+            {isDrawing ? '??I...' : <><CheckCircle2 size={16} /> CU?C</>}
           </button>
         </div>
       </div>
@@ -555,11 +595,11 @@ export default function App() {
       <div className="fixed bottom-3 left-1/2 -translate-x-1/2 flex gap-20 z-[70] items-center bg-zinc-900/60 backdrop-blur-xl px-12 py-4 rounded-full border border-white/10 shadow-2xl">
           <button onClick={() => setActiveTab('play')} className={`transition-all flex flex-col items-center gap-1 ${activeTab === 'play' ? 'text-indigo-400 drop-shadow-[0_0_8px_currentColor]' : 'text-zinc-600 hover:text-zinc-400'}`}>
             <MousePointer2 size={22} fill={activeTab === 'play' ? 'currentColor' : 'none'} />
-            <span className="text-[8px] font-black uppercase tracking-widest">Sảnh</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">S?nh</span>
           </button>
           <button onClick={() => setActiveTab('history')} className={`transition-all flex flex-col items-center gap-1 ${activeTab === 'history' ? 'text-indigo-400 drop-shadow-[0_0_8px_currentColor]' : 'text-zinc-600 hover:text-zinc-400'}`}>
             <BarChart3 size={22} />
-            <span className="text-[8px] font-black uppercase tracking-widest">Cầu</span>
+            <span className="text-[8px] font-black uppercase tracking-widest">C?u</span>
           </button>
       </div>
 
@@ -574,3 +614,4 @@ export default function App() {
     </div>
   );
 }
+

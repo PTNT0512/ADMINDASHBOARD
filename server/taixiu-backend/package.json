@@ -1,0 +1,19 @@
+{
+  "name": "taixiu-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js + MongoDB backend for TaiXiuDouble and TaiXiuMD5 (Cocos-compatible binary protocol)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "seed": "node src/scripts/seed-dev-data.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "mongoose": "^8.19.2",
+    "ws": "^8.18.3"
+  }
+}

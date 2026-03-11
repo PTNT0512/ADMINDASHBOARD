@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Wallet, Trophy, AlertCircle, Trash2, CheckCircle2, TrendingUp, Coins, Zap, RefreshCcw, LayoutDashboard, History, Table, Calendar, MapPin, ChevronDown, Clock, X, Star, ChevronLeft, ChevronRight, HelpCircle, Hash, Sparkles, Filter, Info, BookOpen, Plus, Minus, ReceiptText, Calculator, Timer, PlayCircle, XCircle, ChevronUp } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, shouldPlayerWin } from './winRateControl';
 
 // --- CẤU HÌNH ĐẦY ĐỦ KIỂU CHƠI ---
 const GAME_CONFIG = {
@@ -44,6 +46,12 @@ const generateFinalResult = () => {
 
 export default function LoDeApp() {
   const [balance, setBalance] = useState(10000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [betType, setBetType] = useState('lo2');
   const [selectedNumbers, setSelectedNumbers] = useState([]);
   const [amount, setAmount] = useState('');
@@ -152,6 +160,7 @@ export default function LoDeApp() {
   };
 
   const checkWinLogic = (bet, res) => {
+    if (!shouldPlayerWin('xoso1phut')) return false;
     const all = [res.special, res.g1, ...res.g2, ...res.g3, ...res.g4, ...res.g5, ...res.g6, ...res.g7];
     const nums = bet.numbers.split(',');
     switch(bet.betTypeCode) {

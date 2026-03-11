@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Coins, RotateCcw, Hash, History, User } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { bootstrapGameAuth } from './authBootstrap';
 
 const CARD_VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
 const SUITS = ['♠', '♥', '♣', '♦'];
@@ -7,6 +9,11 @@ const CHIP_VALUES = [5000, 10000, 50000, 100000, 200000, 500000, 1000000, 500000
 
 const DragonTigerPro = () => {
   const [balance, setBalance] = useState(100000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+  }, []);
   const [roundId, setRoundId] = useState(1001);
   const [gameState, setGameState] = useState('betting');
   const [timer, setTimer] = useState(15);
@@ -18,9 +25,13 @@ const DragonTigerPro = () => {
   const [isDealing, setIsDealing] = useState(false);
   const [history, setHistory] = useState(['D', 'D', 'D', 'T', 'T', 'D', 'E', 'D', 'T', 'T', 'T', 'T', 'D', 'D', 'T', 'D', 'D', 'D', 'D', 'T', 'T', 'E', 'T', 'D', 'D', 'D', 'T', 'T', 'T', 'D', 'D', 'T', 'T', 'E', 'D', 'D', 'T', 'T', 'D', 'D', 'E', 'D', 'T', 'T']);
   const [lastWin, setLastWin] = useState(null);
-  const [message, setMessage] = useState('Mời đặt cược');
+  const [message, setMessage] = useState('Moi dat cuoc');
+  
+  const [isDemoMode, setIsDemoMode] = useState(false);
   
   const scrollRef = useRef(null);
+  const handledResultSessionRef = useRef(0);
+  const handledBettingSessionRef = useRef(0);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -60,6 +71,7 @@ const DragonTigerPro = () => {
   }, [history]);
 
   useEffect(() => {
+    if (!isDemoMode) return undefined;
     let interval;
     if (gameState === 'betting' && timer > 0) {
       interval = setInterval(() => setTimer(t => t - 1), 1000);
@@ -67,7 +79,75 @@ const DragonTigerPro = () => {
       startDealing();
     }
     return () => clearInterval(interval);
-  }, [timer, gameState]);
+  }, [timer, gameState, isDemoMode]);
+
+  useEffect(() => {
+    const socket = io('http://localhost:4001', { transports: ['websocket'] });
+
+    socket.on('connect', () => setIsDemoMode(false));
+    socket.on('connect_error', () => setIsDemoMode(true));
+
+    socket.on('rongho_update', (data = {}) => {
+      const sessionId = Number(data.sessionId || 0);
+      if (sessionId > 0) setRoundId(sessionId);
+
+      if (data.phase === 'BETTING') {
+        if (handledBettingSessionRef.current === sessionId && sessionId > 0) return;
+        handledBettingSessionRef.current = sessionId;
+        setGameState('betting');
+        setTimer(Number(data.timeLeft || 15));
+        setIsDealing(false);
+        setRevealState({ dragon: false, tiger: false });
+        setCards({ dragon: null, tiger: null });
+        setLastWin(null);
+        setMessage('Moi dat cuoc');
+        setBets({ dragon: 0, tiger: 0, tie: 0 });
+        return;
+      }
+
+      if (data.phase === 'RESULT') {
+        if (handledResultSessionRef.current === sessionId && sessionId > 0) return;
+        handledResultSessionRef.current = sessionId;
+
+        let dragon = getRandomCard();
+        let tiger = getRandomCard();
+        const result = String(data.result || '').toUpperCase();
+        if (result === 'DRAGON') {
+          dragon.rank = Math.min(13, Math.max(dragon.rank, tiger.rank + 1));
+          if (dragon.rank === tiger.rank) tiger.rank = Math.max(1, dragon.rank - 1);
+          dragon.value = CARD_VALUES[dragon.rank - 1];
+          tiger.value = CARD_VALUES[tiger.rank - 1];
+        } else if (result === 'TIGER') {
+          tiger.rank = Math.min(13, Math.max(tiger.rank, dragon.rank + 1));
+          if (tiger.rank === dragon.rank) dragon.rank = Math.max(1, tiger.rank - 1);
+          dragon.value = CARD_VALUES[dragon.rank - 1];
+          tiger.value = CARD_VALUES[tiger.rank - 1];
+        } else {
+          tiger.rank = dragon.rank;
+          tiger.value = dragon.value;
+        }
+
+        setGameState('revealing');
+        setIsDealing(true);
+        setCards({ dragon, tiger });
+        setRevealState({ dragon: false, tiger: false });
+
+        setTimeout(() => {
+          setRevealState((prev) => ({ ...prev, dragon: true }));
+          setTimeout(() => {
+            setRevealState((prev) => ({ ...prev, tiger: true }));
+            const winner = result === 'DRAGON' ? 'dragon' : result === 'TIGER' ? 'tiger' : 'tie';
+            setLastWin(winner);
+            setGameState('result');
+            setHistory((prev) => [...prev, winner === 'dragon' ? 'D' : winner === 'tiger' ? 'T' : 'E']);
+            setMessage(winner === 'dragon' ? 'RONG THANG' : winner === 'tiger' ? 'HO THANG' : 'HOA');
+          }, 700);
+        }, 300);
+      }
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   const startDealing = () => {
     setGameState('dealing');
@@ -363,3 +443,4 @@ const BetZone = ({ label, active, color, myBet, total, onClick, disabled, format
 };
 
 export default function App() { return <DragonTigerPro />; }
+

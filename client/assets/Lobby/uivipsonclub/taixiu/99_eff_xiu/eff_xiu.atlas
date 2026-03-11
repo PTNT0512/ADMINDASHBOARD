@@ -1,0 +1,62 @@
+
+eff_xiu.png
+size: 1803,277
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 1524, 83
+  size: 180, 192
+  orig: 326, 286
+  offset: 73, 44
+  index: -1
+2
+  rotate: false
+  xy: 1312, 53
+  size: 210, 222
+  orig: 326, 286
+  offset: 58, 30
+  index: -1
+3
+  rotate: false
+  xy: 1073, 24
+  size: 237, 251
+  orig: 326, 286
+  offset: 35, 18
+  index: -1
+4
+  rotate: false
+  xy: 562, 4
+  size: 266, 271
+  orig: 326, 286
+  offset: 17, 8
+  index: -1
+5
+  rotate: true
+  xy: 2, 2
+  size: 273, 285
+  orig: 326, 286
+  offset: 6, 1
+  index: -1
+6
+  rotate: false
+  xy: 289, 2
+  size: 271, 273
+  orig: 326, 286
+  offset: 0, 0
+  index: -1
+7
+  rotate: true
+  xy: 830, 9
+  size: 266, 241
+  orig: 326, 286
+  offset: 1, 13
+  index: -1
+xiu
+  rotate: true
+  xy: 1706, 124
+  size: 151, 95
+  orig: 151, 95
+  offset: 0, 0
+  index: -1

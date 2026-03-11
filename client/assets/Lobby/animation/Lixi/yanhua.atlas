@@ -1,0 +1,335 @@
+
+yanhua.png
+size: 2048,1024
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+ic/yanhua1/登录_00001
+  rotate: true
+  xy: 703, 598
+  size: 199, 211
+  orig: 1334, 750
+  offset: 1060, 528
+  index: -1
+ic/yanhua1/登录_00003
+  rotate: false
+  xy: 584, 275
+  size: 96, 95
+  orig: 1334, 750
+  offset: 1109, 585
+  index: -1
+ic/yanhua1/登录_00005
+  rotate: true
+  xy: 575, 490
+  size: 131, 126
+  orig: 1334, 750
+  offset: 1092, 568
+  index: -1
+ic/yanhua1/登录_00007
+  rotate: false
+  xy: 582, 111
+  size: 162, 156
+  orig: 1334, 750
+  offset: 1077, 551
+  index: -1
+ic/yanhua1/登录_00009
+  rotate: false
+  xy: 1314, 428
+  size: 181, 179
+  orig: 1334, 750
+  offset: 1067, 538
+  index: -1
+ic/yanhua1/登录_00011
+  rotate: true
+  xy: 1121, 607
+  size: 192, 191
+  orig: 1334, 750
+  offset: 1062, 531
+  index: -1
+ic/yanhua1/登录_00013
+  rotate: false
+  xy: 916, 595
+  size: 203, 202
+  orig: 1334, 750
+  offset: 1056, 524
+  index: -1
+ic/yanhua1/登录_00015
+  rotate: false
+  xy: 1828, 810
+  size: 210, 207
+  orig: 1334, 750
+  offset: 1053, 521
+  index: -1
+ic/yanhua1/登录_00017
+  rotate: false
+  xy: 1381, 804
+  size: 222, 213
+  orig: 1334, 750
+  offset: 1049, 519
+  index: -1
+ic/yanhua1/登录_00019
+  rotate: false
+  xy: 472, 790
+  size: 229, 227
+  orig: 1334, 750
+  offset: 1043, 510
+  index: -1
+ic/yanhua1/登录_00021
+  rotate: true
+  xy: 2, 88
+  size: 230, 222
+  orig: 1334, 750
+  offset: 1044, 510
+  index: -1
+ic/yanhua1/登录_00023
+  rotate: false
+  xy: 2, 786
+  size: 234, 231
+  orig: 1334, 750
+  offset: 1040, 505
+  index: -1
+ic/yanhua1/登录_00025
+  rotate: false
+  xy: 2, 552
+  size: 233, 232
+  orig: 1334, 750
+  offset: 1041, 503
+  index: -1
+ic/yanhua1/登录_00027
+  rotate: true
+  xy: 238, 788
+  size: 229, 232
+  orig: 1334, 750
+  offset: 1042, 501
+  index: -1
+ic/yanhua1/登录_00029
+  rotate: false
+  xy: 2, 320
+  size: 229, 230
+  orig: 1334, 750
+  offset: 1042, 503
+  index: -1
+ic/yanhua1/登录_00031
+  rotate: false
+  xy: 703, 799
+  size: 226, 218
+  orig: 1334, 750
+  offset: 1044, 514
+  index: -1
+ic/yanhua1/登录_00033
+  rotate: false
+  xy: 931, 801
+  size: 224, 216
+  orig: 1334, 750
+  offset: 1045, 515
+  index: -1
+ic/yanhua1/登录_00035
+  rotate: false
+  xy: 1157, 803
+  size: 222, 214
+  orig: 1334, 750
+  offset: 1046, 516
+  index: -1
+ic/yanhua1/登录_00037
+  rotate: false
+  xy: 1605, 803
+  size: 221, 214
+  orig: 1334, 750
+  offset: 1047, 516
+  index: -1
+ic/yanhua2/yanhua2_00001
+  rotate: false
+  xy: 1480, 640
+  size: 32, 35
+  orig: 1334, 750
+  offset: 125, 596
+  index: -1
+ic/yanhua2/yanhua2_00002
+  rotate: false
+  xy: 2, 16
+  size: 64, 70
+  orig: 1334, 750
+  offset: 109, 578
+  index: -1
+ic/yanhua2/yanhua2_00003
+  rotate: true
+  xy: 584, 372
+  size: 116, 117
+  orig: 1334, 750
+  offset: 82, 553
+  index: -1
+ic/yanhua2/yanhua2_00004
+  rotate: false
+  xy: 1944, 695
+  size: 102, 113
+  orig: 1334, 750
+  offset: 91, 555
+  index: -1
+ic/yanhua2/yanhua2_00005
+  rotate: false
+  xy: 1480, 677
+  size: 115, 125
+  orig: 1334, 750
+  offset: 85, 548
+  index: -1
+ic/yanhua2/yanhua2_00006
+  rotate: true
+  xy: 226, 2
+  size: 128, 140
+  orig: 1334, 750
+  offset: 79, 539
+  index: -1
+ic/yanhua2/yanhua2_00007
+  rotate: false
+  xy: 893, 123
+  size: 139, 150
+  orig: 1334, 750
+  offset: 73, 532
+  index: -1
+ic/yanhua2/yanhua2_00008
+  rotate: false
+  xy: 746, 111
+  size: 145, 156
+  orig: 1334, 750
+  offset: 70, 528
+  index: -1
+ic/yanhua2/yanhua2_00009
+  rotate: false
+  xy: 1791, 638
+  size: 151, 163
+  orig: 1334, 750
+  offset: 67, 522
+  index: -1
+ic/yanhua2/yanhua2_00010
+  rotate: true
+  xy: 881, 275
+  size: 155, 167
+  orig: 1334, 750
+  offset: 65, 519
+  index: -1
+ic/yanhua2/yanhua2_00011
+  rotate: false
+  xy: 1689, 271
+  size: 159, 171
+  orig: 1334, 750
+  offset: 63, 515
+  index: -1
+ic/yanhua2/yanhua2_00012
+  rotate: false
+  xy: 1850, 271
+  size: 162, 174
+  orig: 1334, 750
+  offset: 61, 512
+  index: -1
+ic/yanhua2/yanhua2_00013
+  rotate: true
+  xy: 404, 272
+  size: 165, 178
+  orig: 1334, 750
+  offset: 60, 508
+  index: -1
+ic/yanhua2/yanhua2_00014
+  rotate: true
+  xy: 399, 103
+  size: 167, 181
+  orig: 1334, 750
+  offset: 59, 505
+  index: -1
+ic/yanhua2/yanhua2_00015
+  rotate: true
+  xy: 472, 623
+  size: 165, 183
+  orig: 1334, 750
+  offset: 60, 503
+  index: -1
+ic/yanhua2/yanhua2_00016
+  rotate: false
+  xy: 404, 439
+  size: 169, 182
+  orig: 1334, 750
+  offset: 58, 504
+  index: -1
+ic/yanhua2/yanhua2_00017
+  rotate: false
+  xy: 233, 366
+  size: 169, 184
+  orig: 1334, 750
+  offset: 58, 502
+  index: -1
+ic/yanhua2/yanhua2_00018
+  rotate: false
+  xy: 226, 132
+  size: 171, 186
+  orig: 1334, 750
+  offset: 57, 499
+  index: -1
+ic/yanhua2/yanhua2_00019
+  rotate: false
+  xy: 1314, 609
+  size: 164, 192
+  orig: 1334, 750
+  offset: 60, 493
+  index: -1
+ic/yanhua2/yanhua2_00020
+  rotate: true
+  xy: 1597, 637
+  size: 164, 192
+  orig: 1334, 750
+  offset: 60, 493
+  index: -1
+ic/yanhua2/yanhua2_00021
+  rotate: true
+  xy: 1121, 434
+  size: 171, 191
+  orig: 1334, 750
+  offset: 57, 493
+  index: -1
+ic/yanhua2/yanhua2_00022
+  rotate: false
+  xy: 1497, 444
+  size: 172, 191
+  orig: 1334, 750
+  offset: 56, 493
+  index: -1
+ic/yanhua2/yanhua2_00023
+  rotate: true
+  xy: 1497, 272
+  size: 170, 190
+  orig: 1334, 750
+  offset: 58, 493
+  index: -1
+ic/yanhua2/yanhua2_00024
+  rotate: false
+  xy: 1671, 444
+  size: 161, 191
+  orig: 1334, 750
+  offset: 61, 493
+  index: -1
+ic/yanhua2/yanhua2_00025
+  rotate: false
+  xy: 1834, 447
+  size: 162, 189
+  orig: 1334, 750
+  offset: 61, 495
+  index: -1
+ic/yanhua2/yanhua2_00026
+  rotate: true
+  xy: 882, 432
+  size: 161, 176
+  orig: 1334, 750
+  offset: 62, 508
+  index: -1
+ic/yanhua2/yanhua2_00027
+  rotate: true
+  xy: 703, 434
+  size: 162, 177
+  orig: 1334, 750
+  offset: 61, 507
+  index: -1
+ic/yanhua2/yanhua2_00028
+  rotate: true
+  xy: 703, 269
+  size: 163, 176
+  orig: 1334, 750
+  offset: 61, 507
+  index: -1

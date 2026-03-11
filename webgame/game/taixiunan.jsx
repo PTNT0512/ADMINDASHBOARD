@@ -1,11 +1,100 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { 
+﻿import React, { useState, useRef, useEffect } from 'react';
+import {
+
   RotateCcw, Sparkles, BrainCircuit, Loader2, Timer, EyeOff, Trophy, Coins, 
-  Zap, Fingerprint, Eye, Bell, Clock, BarChart3, X, ChevronRight, History, 
-  TrendingUp, Plane, Target, ShieldAlert, Crosshair, Activity, MessageSquare, 
-  Send, ClipboardList, User, Radio, Scan, Move, Sun, Moon, HelpCircle, ArrowUp, Bomb, Power, ShieldCheck, Flame 
+  Zap, Fingerprint, Eye, Clock, BarChart3, X, ChevronRight, History, 
+  TrendingUp, Plane, Target, Crosshair, Activity, 
+  ClipboardList, User, Scan, Move, Sun, Moon, HelpCircle, ArrowUp, Bomb, Power, ShieldCheck, Flame 
 } from 'lucide-react';
-import { io } from "socket.io-client";
+import { bootstrapGameAuth } from './authBootstrap';
+import { emitWithAck, getSharedGameSocket } from './socketClient';
+
+const resolveGameApiBase = () => {
+  if (typeof window !== 'undefined') {
+    const fromWindow = window.GAME_API_URL || window.API_BASE_URL || window.SOCKET_API_URL;
+    if (typeof fromWindow === 'string' && fromWindow.trim()) {
+      return fromWindow.trim().replace(/\/+$/, '');
+    }
+  }
+  return 'http://localhost:4001';
+};
+
+const GAME_API_BASE = resolveGameApiBase();
+const GAME_SESSION_STORAGE_KEY = 'gameSessionToken';
+const BOT_CONFIG_STORAGE_KEY = 'taixiunanBotAutoConfig';
+const BOT_CONFIG_DEFAULT = {
+  enabled: true,
+  botCount: 50,
+  minAmount: 10000,
+  maxAmount: 500000,
+};
+
+const normalizeBotConfig = (raw = {}) => {
+  const enabled = raw?.enabled !== false;
+  const botCountRaw = Number(raw?.botCount ?? BOT_CONFIG_DEFAULT.botCount);
+  const minAmountRaw = Number(raw?.minAmount ?? BOT_CONFIG_DEFAULT.minAmount);
+  const maxAmountRaw = Number(raw?.maxAmount ?? BOT_CONFIG_DEFAULT.maxAmount);
+  const botCount = Math.min(999, Math.max(50, Math.floor(Number.isFinite(botCountRaw) ? botCountRaw : BOT_CONFIG_DEFAULT.botCount)));
+  const minAmount = Math.max(1000, Math.floor(Number.isFinite(minAmountRaw) ? minAmountRaw : BOT_CONFIG_DEFAULT.minAmount));
+  const maxAmount = Math.max(minAmount, Math.floor(Number.isFinite(maxAmountRaw) ? maxAmountRaw : BOT_CONFIG_DEFAULT.maxAmount));
+  return { enabled, botCount, minAmount, maxAmount };
+};
+
+const randomBotBetAmount = (minAmount, maxAmount) => {
+  const min = Math.max(1000, Math.floor(Number(minAmount || 0)));
+  const max = Math.max(min, Math.floor(Number(maxAmount || min)));
+  const randomValue = Math.floor(Math.random() * (max - min + 1)) + min;
+  return Math.max(1000, Math.round(randomValue / 1000) * 1000);
+};
+
+const readJsonResponseSafe = async (response) => {
+  const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+  const text = await response.text();
+  if (!contentType.includes('application/json')) {
+    const preview = text.slice(0, 120).replace(/\s+/g, ' ').trim();
+    throw new Error(`API non-JSON (${response.status}): ${preview || 'empty response'}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`JSON parse failed (${response.status}): ${error.message}`);
+  }
+};
+
+const getStoredSessionToken = () => {
+  if (typeof window === 'undefined') return '';
+  return String(localStorage.getItem(GAME_SESSION_STORAGE_KEY) || '').trim();
+};
+
+const parseRoundFromDice = (dice = []) => {
+  const normalizedDice = [0, 1, 2].map((idx) => Number(dice[idx] || 0));
+  const sum = normalizedDice.reduce((total, value) => total + (Number.isFinite(value) ? value : 0), 0);
+  return { type: sum >= 11 ? 'T' : 'X', sum, dice: normalizedDice };
+};
+
+const normalizeDetailedBets = (rows = []) => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => ({
+      id: String(row?.username || `User_${Number(row?.userId || 0)}`),
+      target: String(row?.target || '').trim().toUpperCase(),
+      amount: Number(row?.amount || 0),
+    }))
+    .filter((row) => ['TAI', 'XIU'].includes(row.target) && Number.isFinite(row.amount) && row.amount > 0)
+    .slice(0, 150);
+};
+
+const normalizeRecentResults = (rows = []) => {
+  if (!Array.isArray(rows)) return [];
+  return rows
+    .map((row) => ({
+      type: String(row?.type || '').toUpperCase() === 'T' ? 'T' : 'X',
+      sum: Number(row?.sum || 0),
+      sessionId: String(row?.sessionId || ''),
+      dice: Array.isArray(row?.dice) ? row.dice.map((item) => Number(item || 0)) : [],
+    }))
+    .filter((row) => Number.isFinite(row.sum) && row.sum > 0);
+};
 
 // --- Component Pháo Hoa ---
 const Fireworks = () => {
@@ -129,12 +218,12 @@ const RealisticDice = ({ value, isRolling, position, isRevealed, isDarkMode }) =
 };
 
 // --- Component Chip ---
-const MilitaryChip = ({ value, colorClass, isSelected, onClick, isDarkMode }) => {
+const MilitaryChip = ({ value, colorClass, isSelected, onClick, isDarkMode, isCompact = false }) => {
   const displayValue = value >= 1000000 ? `${value / 1000000}M` : value >= 1000 ? `${value / 1000}K` : value;
   return (
     <button
       onClick={onClick}
-      className={`relative w-11 h-14 flex flex-col items-center justify-center transition-all duration-300 active:scale-90
+      className={`mobile-chip-btn relative ${isCompact ? 'w-10 h-12' : 'w-11 h-14'} flex flex-col items-center justify-center transition-all duration-300 active:scale-90
         ${isSelected ? 'scale-115 -translate-y-2 z-10' : 'opacity-40 hover:opacity-100'}
       `}
     >
@@ -194,16 +283,19 @@ const App = () => {
   const [jackpot, setJackpot] = useState(128464468);
   const [selectedChip, setSelectedChip] = useState(1000);
   const [currentUser, setCurrentUser] = useState(null);
-  const [bets, setBets] = useState({ tai: 0, xiu: 0, bao: 0 });
+  const [bets, setBets] = useState({ tai: 0, xiu: 0 });
   const [session, setSession] = useState(12042);
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isDemoMode, setIsDemoMode] = useState(false);
   const [timeLeft, setTimeLeft] = useState(60); 
   const [phase, setPhase] = useState("BETTING");
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 390));
+  const isCompactMobile = viewportWidth <= 390;
+  const isVerySmallMobile = viewportWidth <= 360;
   
   // Dữ liệu trò chơi
   const [gameHistory, setGameHistory] = useState([
-    { type: 'T', sum: 14 }, { type: 'X', sum: 8 }, { type: 'T', sum: 12 }, { type: 'B', sum: 18 },
+    { type: 'T', sum: 14 }, { type: 'X', sum: 8 }, { type: 'T', sum: 12 }, { type: 'T', sum: 18 },
     { type: 'X', sum: 5 }, { type: 'T', sum: 11 }, { type: 'X', sum: 10 }, { type: 'T', sum: 15 }
   ]);
   const [betHistory, setBetHistory] = useState([]);
@@ -235,29 +327,98 @@ const App = () => {
   // Ref để theo dõi phase hiện tại trong socket callback mà không cần dependency
   const phaseRef = useRef(phase);
   useEffect(() => { phaseRef.current = phase; }, [phase]);
+  const sessionRef = useRef(session);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+  const scratchedDoneRef = useRef(isScratchedDone);
+  useEffect(() => { scratchedDoneRef.current = isScratchedDone; }, [isScratchedDone]);
+  const readyToScratchRef = useRef(isReadyToScratch);
+  useEffect(() => { readyToScratchRef.current = isReadyToScratch; }, [isReadyToScratch]);
+  const socketRef = useRef(null);
+  const pendingHistoryRoundRef = useRef(null);
 
   // Modals
   const [showRoadmap, setShowRoadmap] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [showChat, setShowChat] = useState(false);
   const [showSessionBets, setShowSessionBets] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   
-  const [messages, setMessages] = useState([{ id: 1, user: 'Phi_Công_Elite', text: 'Kéo bát ra ngoài đi chỉ huy!', time: '16:00' }]);
-  const [chatInput, setChatInput] = useState('');
-  const [sessionBets, setSessionBets] = useState([{ id: 'PhiCông_99', target: 'TAI', amount: 5000000 }]);
+  const [sessionBets, setSessionBets] = useState([]);
+  const [botConfig, setBotConfig] = useState(() => {
+    if (typeof window === 'undefined') return BOT_CONFIG_DEFAULT;
+    try {
+      const raw = localStorage.getItem(BOT_CONFIG_STORAGE_KEY);
+      if (!raw) return BOT_CONFIG_DEFAULT;
+      return normalizeBotConfig(JSON.parse(raw));
+    } catch (_) {
+      return BOT_CONFIG_DEFAULT;
+    }
+  });
   const [prediction, setPrediction] = useState(null);
   const [showBigWin, setShowBigWin] = useState(false);
   const [refundNotification, setRefundNotification] = useState(null);
   const [chipAnimations, setChipAnimations] = useState([]); // Thêm khai báo state này
   
-  // State cho Spin Hũ
+  // State cho Spin HÅ©
   const [showSpinModal, setShowSpinModal] = useState(false);
   const [jackpotResult, setJackpotResult] = useState(null);
   const [spinDiceVals, setSpinDiceVals] = useState([1,1,1]);
   const [isSpinning, setIsSpinning] = useState(false);
   const [spinFinished, setSpinFinished] = useState(false);
   const serverJackpotData = useRef(null);
+
+  const queueHistoryRound = (round) => {
+    if (!round || typeof round !== 'object') return;
+    const sum = Number(round.sum || 0);
+    const type = String(round.type || '').toUpperCase() === 'T' ? 'T' : 'X';
+    if (!Number.isFinite(sum) || sum <= 0) return;
+    pendingHistoryRoundRef.current = {
+      type,
+      sum,
+      sessionId: String(round.sessionId || ''),
+      dice: Array.isArray(round.dice) ? round.dice.slice(0, 3) : [],
+    };
+  };
+
+  const commitPendingHistoryRound = () => {
+    const queued = pendingHistoryRoundRef.current;
+    if (!queued) return;
+    pendingHistoryRoundRef.current = null;
+    setGameHistory((prev) => {
+      if (queued.sessionId && prev[0]?.sessionId && String(prev[0].sessionId) === String(queued.sessionId)) {
+        return prev.slice(0, 100);
+      }
+      return [queued, ...prev].slice(0, 100);
+    });
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const onResize = () => {
+      setViewportWidth(window.innerWidth);
+      document.documentElement.style.setProperty('--app-vh', `${window.innerHeight * 0.01}px`);
+    };
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+    if (!tg) return;
+    try {
+      tg.ready();
+      tg.expand();
+      const appBg = isDarkMode ? '#07090c' : '#f1f5f9';
+      if (typeof tg.setBackgroundColor === 'function') tg.setBackgroundColor(appBg);
+      if (typeof tg.setHeaderColor === 'function') tg.setHeaderColor(appBg);
+    } catch (_) {}
+  }, [isDarkMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(BOT_CONFIG_STORAGE_KEY, JSON.stringify(normalizeBotConfig(botConfig)));
+  }, [botConfig]);
 
   // --- Helper Functions ---
 
@@ -269,24 +430,22 @@ const App = () => {
   const calculateWinnings = (currentDice) => {
     if (!currentDice || currentDice.length !== 3) return;
     const d1 = Number(currentDice[0]); const d2 = Number(currentDice[1]); const d3 = Number(currentDice[2]);
-    const sum = d1 + d2 + d3; const isTriple = (d1 === d2) && (d2 === d3);
+    const sum = d1 + d2 + d3;
     let res;
-    if (isTriple) {
-        if (sum === 3) res = 'X'; else if (sum === 18) res = 'T'; else res = 'B';
-    } else { res = sum >= 11 ? 'T' : 'X'; }
+    res = sum >= 11 ? 'T' : 'X';
 
-    const wins = []; if (res === 'T') wins.push('tai'); if (res === 'X') wins.push('xiu'); if (res === 'B') wins.push('bao');
+    const wins = []; if (res === 'T') wins.push('tai'); if (res === 'X') wins.push('xiu');
     setWinningAreas(wins);
     let totalWin = 0;
     let winAmount = 0; // Initialize winAmount here
     Object.keys(bets).forEach(type => {
         const betVal = bets[type];
-        winAmount = ((type === 'tai' && res === 'T') || (type === 'xiu' && res === 'X')) ? Math.floor(betVal * 1.96) : (type === 'bao' && res === 'B') ? betVal * 30 : 0;
+        winAmount = ((type === 'tai' && res === 'T') || (type === 'xiu' && res === 'X')) ? Math.floor(betVal * 1.96) : 0;
         setBetHistory(prev => [{ session, type: type.toUpperCase(), amount: betVal, result: res, winAmount, time: new Date().toLocaleTimeString().slice(0, 5) }, ...prev]);
         if (betVal > 0 && winAmount > 0) { totalWin += winAmount; setBalance(p => p + winAmount); }
     });
     if (totalWin >= 2000000) { setShowBigWin(true); setTimeout(() => setShowBigWin(false), 6000); }
-    setGameHistory(prev => [{ type: res, sum }, ...prev].slice(0, 100));
+    queueHistoryRound({ type: res, sum, sessionId: String(sessionRef.current || session || '') });
   };
 
   const startResultPhase = () => {
@@ -306,8 +465,9 @@ const App = () => {
   };
 
   const startNewSession = () => {
+    commitPendingHistoryRound();
     setPhase("BETTING");
-    setBets({ tai: 0, xiu: 0, bao: 0 });
+    setBets({ tai: 0, xiu: 0 });
     setWinningAreas([]); 
     setBowlOffset({ x: 0, y: 0 });
     setIsBowlFading(false);
@@ -318,17 +478,20 @@ const App = () => {
     setShowSpinModal(false); // <--- Đóng modal spin nếu đang mở
     setSpinFinished(false); // <--- Reset trạng thái spin
     if (isDemoMode) setSession(s => s + 1); // Tự tăng session nếu chạy Demo
-    setSessionBets([
-        { id: `PhiCông_${Math.floor(Math.random()*999)}`, target: Math.random() > 0.5 ? 'TAI' : 'XIU', amount: Math.floor(Math.random()*10)*100000 },
-        { id: `PhiCông_${Math.floor(Math.random()*999)}`, target: Math.random() > 0.5 ? 'TAI' : 'XIU', amount: Math.floor(Math.random()*10)*100000 }
-    ]);
+    setSessionBets([]);
   };
 
   const startRollingPhase = async (serverDice) => {
     setPhase("SCRATCHING"); setIsRolling(true); setWinningAreas([]);
     
-    // Nếu có dice từ server truyền vào thì dùng, không thì random (cho demo)
-    const newDice = serverDice || [Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1];
+    const isValidDiceFromServer = Array.isArray(serverDice)
+      && serverDice.length === 3
+      && serverDice.every((value) => Number.isInteger(Number(value)) && Number(value) >= 1 && Number(value) <= 6);
+
+    // Nếu có dice hợp lệ từ server truyền vào thì dùng, không thì random (demo/fallback)
+    const newDice = isValidDiceFromServer
+      ? serverDice.map((value) => Number(value))
+      : [Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1, Math.floor(Math.random()*6)+1];
 
     setDicePositions(getSectorPositions(false));
     setTimeout(() => { setDice(newDice); setIsRolling(false); setIsReadyToScratch(true); }, 1500);
@@ -383,12 +546,6 @@ const App = () => {
     if (match) { setBowlOffset({ x: 0, y: 0 }); }
   };
 
-  const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    setMessages(prev => [...prev, { id: Date.now(), user: 'duog', text: chatInput, time: new Date().toLocaleTimeString().slice(0, 5) }]);
-    setChatInput('');
-  };
-
   const getWinnerStyle = (id) => {
     if (phase !== "RESULT" && !(phase === "SCRATCHING" && isScratchedDone)) return "";
     if (winningAreas.includes(id)) return `ring-4 ring-sky-400 shadow-[0_0_50px_rgba(56,189,248,0.8)] animate-pulse z-20 scale-[1.03] ${isDarkMode ? 'bg-sky-900/50 border-sky-300' : 'bg-sky-200/80 border-sky-500'}`;
@@ -433,19 +590,10 @@ const App = () => {
 
   // --- XỬ LÝ ĐĂNG NHẬP TỰ ĐỘNG ---
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      fetch('http://localhost:4001/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) { setCurrentUser(data.user); setBalance(data.user.balance); }
-      }).catch(err => console.error(err));
-    }
+    bootstrapGameAuth({
+      onUser: setCurrentUser,
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
   }, []);
 
   // Hiệu ứng thay đổi số liên tục khi đang quay Spin
@@ -462,18 +610,20 @@ const App = () => {
   // --- ĐỒNG BỘ SERVER ---
   useEffect(() => {
     let isMounted = true;
+    let hasServerSnapshot = false;
+    let serverWarmupTimer = null;
     // 1. Logic chạy Demo (Offline)
     if (isDemoMode) {
       const timer = setInterval(() => {
         if (!isMounted) return;
         setTimeLeft((prev) => {
           if (prev <= 1) {
-            if (phase === "BETTING") { 
+            if (phaseRef.current === "BETTING") { 
                 startRollingPhase(); 
                 return 15; 
             }
-            else if (phase === "SCRATCHING") { 
-                if (!isScratchedDone) startResultPhase(); 
+            else if (phaseRef.current === "SCRATCHING") { 
+                if (!scratchedDoneRef.current) startResultPhase(); 
                 return 10; 
             }
             else { 
@@ -488,53 +638,153 @@ const App = () => {
     }
 
     // 2. Logic đồng bộ Server (Online) - SOCKET.IO
-    const socket = io('http://localhost:4001', { transports: ['websocket'] });
+    const socket = getSharedGameSocket(GAME_API_BASE);
+    socketRef.current = socket;
+    serverWarmupTimer = setTimeout(() => {
+      if (!isMounted || hasServerSnapshot) return;
+      console.log('[TX Nan] Khong co du lieu phien, chuyen sang Demo Mode');
+      setIsDemoMode(true);
+    }, 6000);
     
-    socket.on('connect', () => {
-        console.log('[Socket] Connected to server');
-    });
+    const onConnect = () => {
+      console.log('[Socket] Connected to server');
+    };
 
-    socket.on('taixiunan', (data) => {
+    const onTxNanStats = (data) => {
         if (!isMounted) return;
-        setTimeLeft(data.timeLeft);
-        if (data.jackpot) setJackpot(data.jackpot);
+        hasServerSnapshot = true;
+        if (serverWarmupTimer) {
+          clearTimeout(serverWarmupTimer);
+          serverWarmupTimer = null;
+        }
+        if (Number.isFinite(Number(data?.timeLeft))) {
+          setTimeLeft(Math.max(0, Number(data.timeLeft)));
+        }
+        if (Number.isFinite(Number(data?.jackpot))) {
+          setJackpot(Number(data.jackpot));
+        }
+        if (Array.isArray(data?.detailedBets)) {
+          setSessionBets(normalizeDetailedBets(data.detailedBets));
+        }
         if (data.jackpotResult) serverJackpotData.current = data.jackpotResult;
-        if (data.sessionId !== session) setSession(data.sessionId);
+        if (data.sessionId !== sessionRef.current) setSession(data.sessionId);
         
         // Sử dụng phaseRef để kiểm tra trạng thái hiện tại
-        if (data.phase === 'RESULT' && phaseRef.current === 'BETTING') startRollingPhase(data.dice);
+        if (data.phase === 'RESULT' && phaseRef.current === 'BETTING') {
+          startRollingPhase(data.dice);
+          if (Array.isArray(data.dice) && data.dice.length >= 3) {
+            const round = parseRoundFromDice(data.dice);
+            queueHistoryRound({ ...round, sessionId: String(data.sessionId || '') });
+          }
+        }
         if (data.phase === 'BETTING' && phaseRef.current !== 'BETTING') startNewSession();
-    });
+        if (phaseRef.current === 'SCRATCHING' && readyToScratchRef.current && data.timeLeft <= 1 && !scratchedDoneRef.current) {
+          startResultPhase();
+        }
+    };
 
-    socket.on('connect_error', () => {
-        console.log("Socket connect error, switching to demo");
+    const onConnectError = () => {
+        // Keep current UI state on temporary network jitter.
+        if (hasServerSnapshot) {
+          console.warn('[TX Nan] Socket reconnecting...');
+          return;
+        }
+        console.log('[TX Nan] Socket connect error, switching to demo mode');
         setIsDemoMode(true);
-    });
+    };
 
-    return () => { isMounted = false; socket.disconnect(); };
-  }, [isDemoMode, session]); // Bỏ phase khỏi dependency để tránh reconnect liên tục
+    socket.on('connect', onConnect);
+    socket.on('taixiunan', onTxNanStats);
+    socket.on('connect_error', onConnectError);
+
+    return () => {
+      isMounted = false;
+      if (serverWarmupTimer) clearTimeout(serverWarmupTimer);
+      socket.off('connect', onConnect);
+      socket.off('taixiunan', onTxNanStats);
+      socket.off('connect_error', onConnectError);
+    };
+  }, [isDemoMode]); // Bỏ phase khỏi dependency để tránh reconnect liên tục
+
+  useEffect(() => {
+    if (isDemoMode) return undefined;
+    const currentUserId = Number(currentUser?.userId || 0);
+
+    let stopped = false;
+    const syncRealtimeData = async () => {
+      try {
+        const sessionToken = getStoredSessionToken();
+        const params = new URLSearchParams();
+        if (sessionToken) params.set('sessionToken', sessionToken);
+        if (Number.isInteger(currentUserId) && currentUserId > 0) {
+          params.set('userId', String(currentUserId));
+        }
+
+        const [accountRes, historyRes] = await Promise.all([
+          params.toString()
+            ? fetch(`${GAME_API_BASE}/api/game/account-snapshot?${params.toString()}`)
+            : Promise.resolve(null),
+          fetch(`${GAME_API_BASE}/api/game/recent-results?game=taixiunan&limit=20`),
+        ]);
+
+        if (!stopped && accountRes && accountRes.ok) {
+          const accountData = await readJsonResponseSafe(accountRes);
+          if (accountData?.success && accountData?.data) {
+            const liveBalance = Number(accountData.data.balance || 0);
+            setBalance(liveBalance);
+            setCurrentUser((prev) => (prev ? { ...prev, balance: liveBalance } : prev));
+          }
+        } else if (!stopped && accountRes && accountRes.status === 401 && sessionToken) {
+          localStorage.removeItem(GAME_SESSION_STORAGE_KEY);
+        }
+
+        if (!stopped && historyRes.ok) {
+          const historyData = await readJsonResponseSafe(historyRes);
+          if (historyData?.success && Array.isArray(historyData?.data)) {
+            const normalized = normalizeRecentResults(historyData.data);
+            if (normalized.length > 0 && phaseRef.current === 'BETTING' && !pendingHistoryRoundRef.current) {
+              setGameHistory(normalized);
+            }
+          }
+        }
+      } catch (error) {
+        if (!stopped) console.warn('[TX Nan] Realtime sync failed:', error?.message || error);
+      }
+    };
+
+    syncRealtimeData();
+    const timer = setInterval(syncRealtimeData, 3000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [isDemoMode, currentUser?.userId]);
 
   // --- BOT TỰ ĐỘNG ---
   useEffect(() => {
-    if (phase !== "BETTING") return;
+    if (!isDemoMode || phase !== "BETTING" || !botConfig.enabled) return;
+    const normalized = normalizeBotConfig(botConfig);
     const botInterval = setInterval(() => {
-        if (Math.random() > 0.3) {
-            const botNames = ['MIG', 'Su-30', 'F-22', 'Pilot', 'Radar', 'Ghost'];
-            const randomName = `${botNames[Math.floor(Math.random() * botNames.length)]}_${Math.floor(Math.random() * 999)}`;
-            const target = Math.random() < 0.45 ? 'TAI' : (Math.random() < 0.9 ? 'XIU' : 'BAO');
-            const amount = [10000, 50000, 100000, 500000][Math.floor(Math.random() * 4)];
-            setSessionBets(prev => [{ id: randomName, target, amount }, ...prev].slice(0, 100));
-            if (Math.random() > 0.85) {
-                const msgs = ['Cầu đẹp quá', 'Vào Tài đi', 'Nặn thôi chỉ huy', 'Húp hũ rồi'];
-                setMessages(prev => [...prev, { id: Date.now(), user: randomName, text: msgs[Math.floor(Math.random() * msgs.length)], time: new Date().toLocaleTimeString().slice(0, 5) }].slice(-20));
-            }
+        const botNames = ['MIG', 'Su-30', 'F-22', 'Pilot', 'Radar', 'Ghost'];
+        const startWithTai = Math.random() >= 0.5;
+        const generatedBets = Array.from({ length: normalized.botCount }, (_, idx) => {
+            const botName = `${botNames[Math.floor(Math.random() * botNames.length)]}_${Math.floor(Math.random() * 999)}`;
+            const target = ((idx % 2) === 0) === startWithTai ? 'TAI' : 'XIU';
+            const amount = randomBotBetAmount(normalized.minAmount, normalized.maxAmount);
+            return { id: botName, target, amount };
+        });
+
+        if (generatedBets.length > 0) {
+            setSessionBets(prev => [...generatedBets, ...prev].slice(0, 100));
         }
+
     }, 1000);
     return () => clearInterval(botInterval);
-  }, [phase]);
+  }, [phase, botConfig, isDemoMode]);
 
   // --- CÂN CỬA ---
   useEffect(() => {
+    if (!isDemoMode) return;
     if (phase === 'BETTING' && timeLeft === 4) {
         const taiTotal = sessionBets.filter(b => b.target === 'TAI').reduce((s, b) => s + b.amount, 0);
         const xiuTotal = sessionBets.filter(b => b.target === 'XIU').reduce((s, b) => s + b.amount, 0);
@@ -585,7 +835,7 @@ const App = () => {
             }
         }
     }
-  }, [timeLeft, phase, bets, sessionBets, currentUser]); // Dòng này bị thiếu
+  }, [timeLeft, phase, bets, sessionBets, currentUser, isDemoMode]); // Dòng này bị thiếu
   const handleBet = (type, e) => {
     if (phase !== "BETTING" || balance < selectedChip) return;
     if ((type === 'tai' && bets.xiu > 0) || (type === 'xiu' && bets.tai > 0)) return;
@@ -609,15 +859,73 @@ const App = () => {
         }
         return [{ id: myId, target: type.toUpperCase(), amount: selectedChip }, ...prev];
     });
+    const rollbackBet = () => {
+      setBets((prev) => ({
+        ...prev,
+        [type]: Math.max(0, Number(prev[type] || 0) - selectedChip),
+      }));
+      setSessionBets((prev) => {
+        const next = prev
+          .map((item) => {
+            if (item.id === myId && item.target === type.toUpperCase()) {
+              return { ...item, amount: Number(item.amount || 0) - selectedChip };
+            }
+            return item;
+          })
+          .filter((item) => Number(item.amount || 0) > 0);
+        return next;
+      });
+      setBalance((prev) => prev + selectedChip);
+    };
 
-    fetch('http://localhost:4001/api/game/bet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type, amount: selectedChip, id: myId, game: 'taixiunan' })
-    }).then(res => res.json()).then(data => {
-        if (data.success && data.newBalance !== undefined) setBalance(data.newBalance);
-        else { setBalance(prev => prev + selectedChip); alert(data.error || "Đặt cược thất bại"); }
-    }).catch(e => console.error(e));
+    if (!isDemoMode && currentUser?.userId) {
+      const sessionToken = getStoredSessionToken();
+      const payload = {
+        game: 'taixiunan',
+        type,
+        amount: selectedChip,
+        userId: currentUser.userId,
+        id: myId,
+        sessionToken,
+      };
+
+      const sendBet = async () => {
+        try {
+          const socket = socketRef.current;
+          if (!socket || !socket.connected) {
+            throw new Error('Socket disconnected');
+          }
+          const data = await emitWithAck(socket, 'game:bet', payload, 3500);
+          if (data?.success) {
+            if (data.newBalance !== undefined) setBalance(data.newBalance);
+            return;
+          }
+          rollbackBet();
+          alert(data?.error || 'Dat cuoc that bai');
+        } catch (socketError) {
+          try {
+            const res = await fetch(`${GAME_API_BASE}/api/game/bet`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            const data = await readJsonResponseSafe(res);
+            if (data.success) {
+              if (data.newBalance !== undefined) setBalance(data.newBalance);
+            } else {
+              rollbackBet();
+              alert(data.error || 'Dat cuoc that bai');
+            }
+          } catch (httpError) {
+            console.error('Bet socket/http failed:', socketError, httpError);
+            rollbackBet();
+            setIsDemoMode(true);
+          }
+        }
+      };
+
+      sendBet();
+    }
     setTimeout(() => {
         setChipAnimations(prev => prev.filter(a => a.id !== animId));
     }, 600);
@@ -625,11 +933,19 @@ const App = () => {
 
   const taiStats = getSessionStats('TAI');
   const xiuStats = getSessionStats('XIU');
-  const baoStats = getSessionStats('BAO');
 
   return (
-    <div className={`flex flex-col min-h-screen w-full max-w-md mx-auto overflow-y-auto relative select-none font-mono transition-colors duration-500
-  ${isDarkMode ? 'bg-[#07090c] text-white' : 'bg-slate-100 text-slate-900'}`}>
+    <div
+      className={`tg-soft-shell flex flex-col min-h-[100dvh] w-full max-w-[430px] mx-auto overflow-y-auto relative select-none font-mono transition-colors duration-500
+  ${isDarkMode ? 'bg-[#07090c] text-white' : 'bg-slate-100 text-slate-900'}`}
+      style={{
+        minHeight: 'calc(var(--app-vh, 1vh) * 100)',
+        paddingTop: 'max(0.2rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+        paddingLeft: 'max(0.2rem, env(safe-area-inset-left))',
+        paddingRight: 'max(0.2rem, env(safe-area-inset-right))',
+      }}
+    >
 
       
       <style>{`
@@ -647,22 +963,80 @@ const App = () => {
         .animate-slot-scroll { animation: slot-scroll 0.1s linear infinite; }
         @keyframes land-reel { 0% { transform: translateY(-20px); } 50% { transform: translateY(10px); } 100% { transform: translateY(0); } }
         .animate-land-reel { animation: land-reel 0.3s ease-out forwards; }
+        .tg-soft-shell {
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+          overscroll-behavior-y: contain;
+          -webkit-tap-highlight-color: transparent;
+          background-image: none;
+        }
+        .tg-soft-shell > * { position: relative; z-index: 1; }
+        .tg-header-panel {
+          border-radius: 16px;
+          backdrop-filter: blur(8px);
+          box-shadow: 0 10px 28px rgba(2, 6, 23, 0.35);
+        }
+        .tg-toolbar {
+          position: sticky;
+          top: 0;
+          z-index: 70;
+          padding-top: max(0.15rem, env(safe-area-inset-top));
+          backdrop-filter: blur(10px);
+        }
+        .tg-toolbar button {
+          min-width: 36px;
+          min-height: 36px;
+          border-radius: 12px;
+          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.2);
+        }
+        .tg-history-strip {
+          border-radius: 14px;
+          backdrop-filter: blur(8px);
+        }
+        .tg-bet-zone {
+          border-top-left-radius: 20px;
+          border-top-right-radius: 20px;
+        }
+        .tg-bet-card {
+          border-radius: 18px;
+          box-shadow: 0 12px 28px rgba(2, 6, 23, 0.28);
+          backdrop-filter: blur(4px);
+        }
+        .tg-chip-deck {
+          border-radius: 16px;
+          box-shadow: 0 10px 28px rgba(2, 6, 23, 0.25);
+        }
+        .mobile-chip-btn > div { border-radius: 12px; }
+        @media (max-width: 480px) {
+          .mobile-radar-wrap { height: 240px; }
+          .tg-toolbar button { min-width: 34px; min-height: 34px; }
+        }
+        @media (max-width: 420px) {
+          .mobile-chip-bar { padding: 0.5rem 0.35rem; gap: 0.25rem; }
+          .mobile-radar-wrap { height: 230px; }
+          .mobile-bet-grid { height: 116px; gap: 0.65rem; }
+          .tg-bet-card { border-radius: 16px; }
+        }
+        @media (max-width: 360px) {
+          .mobile-radar-wrap { height: 210px; }
+          .mobile-bet-grid { height: 104px; gap: 0.55rem; }
+          .mobile-chip-btn { transform: scale(0.93); }
+        }
       `}</style>
 
       {/* Header */}
-      <div className="pt-4 px-4 z-[60]">
-        <div className={`w-full h-14 rounded-xl border-2 overflow-hidden flex items-center justify-between px-4 shadow-xl transition-colors ${isDarkMode ? 'border-slate-700 bg-[#0f172a]' : 'border-slate-300 bg-white'}`}>
+      <div className="pt-3 px-3 z-[60]">
+        <div className={`tg-header-panel w-full h-[clamp(3rem,11vw,3.6rem)] rounded-xl border-2 overflow-hidden flex items-center justify-between px-3 shadow-xl transition-colors ${isDarkMode ? 'border-slate-700 bg-[#0f172a]' : 'border-slate-300 bg-white'}`}>
             <div className="flex items-center"><FighterJet /><div className="flex flex-col leading-none"><span className="text-[10px] font-black text-sky-400 tracking-tighter uppercase">TRUNG TÂM TÁC CHIẾN</span><span className={`text-[7px] tracking-widest uppercase ${isDarkMode ? 'text-white/30' : 'text-slate-400'}`}>MIG-30 ELITE</span></div></div>
             <div className="text-xl tactical-font text-yellow-500">{(jackpot).toLocaleString()}</div>
         </div>
       </div>
 
       {/* Nav */}
-      <div className="px-4 py-2 flex justify-between items-center z-50">
+      <div className="tg-toolbar px-3 py-2 flex justify-between items-center z-50">
           <div className="flex gap-1.5">
             <button onClick={() => setShowRoadmap(true)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-sky-500/30' : 'bg-white border-sky-500'}`}><BarChart3 size={14} className="text-sky-400" /></button>
             <button onClick={() => setShowHistory(true)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-emerald-500/30' : 'bg-white border-emerald-500'}`}><History size={14} className="text-emerald-400" /></button>
-            <button onClick={() => setShowChat(true)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-purple-500/30' : 'bg-white border-purple-500'}`}><MessageSquare size={14} className="text-purple-400" /></button>
             <button onClick={() => setShowSessionBets(true)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-amber-500/30' : 'bg-white border-amber-500'}`}><ClipboardList size={14} className="text-amber-400" /></button>
             <button onClick={() => setIsDarkMode(!isDarkMode)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-yellow-500/30' : 'bg-slate-900 border-yellow-500'}`}>{isDarkMode ? <Sun size={14} className="text-yellow-400" /> : <Moon size={14} className="text-white" />}</button>
             <button onClick={() => setIsSqueezeEnabled(!isSqueezeEnabled)} className={`p-1.5 rounded border active:scale-95 transition-all ${isDarkMode ? 'bg-slate-800 border-pink-500/30' : 'bg-white border-pink-500'}`} title={isSqueezeEnabled ? "Tắt chế độ nặn" : "Bật chế độ nặn"}>
@@ -676,14 +1050,23 @@ const App = () => {
       </div>
 
       {/* Mini History */}
-      <div className={`flex gap-1.5 p-2 overflow-x-auto scrollbar-hide border-y mx-4 rounded-md mb-2 transition-colors ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-slate-200 border-black/5'}`}>
-        {gameHistory.slice(0, 13).map((h, i) => (
-          <div key={i} className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black border transition-all transform hover:scale-110 ${h.type==='T'?'bg-blue-600 border-blue-400 shadow-[0_0_8px_rgba(37,99,235,0.5)]':h.type==='X'?'bg-red-600 border-red-400 shadow-[0_0_8px_rgba(220,38,38,0.5)]':'bg-yellow-500 border-yellow-200 text-black'}`}>{String(h.type)}</div>
+      <div className={`tg-history-strip flex items-center justify-center gap-1.5 p-2 border-y mx-3 rounded-md mb-2 transition-colors ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-slate-200 border-black/5'}`}>
+        {Array.from({ length: 13 }, (_, i) => gameHistory[i] || null).map((h, i) => (
+          <div
+            key={i}
+            className={`flex-shrink-0 ${isVerySmallMobile ? 'w-5 h-5' : 'w-6 h-6'} rounded-full border transition-all transform hover:scale-110 ${
+              h?.type === 'T'
+                ? 'bg-blue-600 border-blue-400 shadow-[0_0_8px_rgba(37,99,235,0.5)]'
+                : h?.type === 'X'
+                  ? 'bg-red-600 border-red-400 shadow-[0_0_8px_rgba(220,38,38,0.5)]'
+                  : (isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-slate-300 border-slate-400')
+            }`}
+          />
         ))}
       </div>
 
       {/* Radar Area (Bát) */}
-      <div className="relative h-[250px] flex items-center justify-center perspective-1000">
+      <div className="mobile-radar-wrap relative mt-2 h-[250px] flex items-center justify-center perspective-1000">
 
         
         <div className={`relative w-64 h-64 flex items-center justify-center ${isRolling ? 'animate-bowl-shake' : ''}`}>
@@ -743,22 +1126,22 @@ const App = () => {
       </div>
 
       {/* Cửa đặt cược */}
-      <div className={`flex-1 p-4 flex flex-col justify-center gap-4 transition-colors ${isDarkMode ? 'bg-[#0a0f14]' : 'bg-slate-200'}`}>
-        <div className="grid grid-cols-2 gap-4 h-32">
-          <button disabled={phase !== "BETTING"} onClick={(e) => handleBet('xiu', e)} className={`relative rounded-xl border-2 transition-all flex flex-col items-center justify-center overflow-hidden ${getWinnerStyle('xiu')} ${phase === "BETTING" ? 'border-red-500/40 bg-red-950/10 active:scale-95' : 'border-slate-800 opacity-50 cursor-not-allowed'}`}>
+      <div className={`tg-bet-zone flex-1 p-[clamp(0.7rem,2.8vw,1rem)] flex flex-col justify-center gap-3 transition-colors ${isDarkMode ? 'bg-[#0a0f14]' : 'bg-slate-200'}`}>
+        <div className={`mobile-bet-grid grid grid-cols-2 ${isCompactMobile ? 'gap-3 h-28' : 'gap-4 h-32'}`}>
+          <button disabled={phase !== "BETTING"} onClick={(e) => handleBet('xiu', e)} className={`tg-bet-card relative rounded-xl border-2 transition-all flex flex-col items-center justify-center overflow-hidden ${getWinnerStyle('xiu')} ${phase === "BETTING" ? 'border-red-500/40 bg-red-950/10 active:scale-95' : 'border-slate-800 opacity-50 cursor-not-allowed'}`}>
             <Crosshair className="absolute top-2 left-2 opacity-20 text-red-500" size={14} />
             <span className="text-[10px] font-black text-red-500/60 uppercase mb-1">Alpha</span>
-            <span className="text-4xl font-black tactical-font text-red-600">XỈU</span>
+            <span className="text-[clamp(2rem,9vw,2.25rem)] font-black tactical-font text-red-600">XỈU</span>
             <div className="flex items-center gap-2 mt-1 opacity-80">
                 <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-400"><User size={10} /> {xiuStats.totalPlayers}</div>
                 <div className="flex items-center gap-0.5 text-[9px] font-bold text-red-400"><Coins size={10} /> {(xiuStats.totalAmount/1000000).toFixed(1)}M</div>
             </div>
             {bets.xiu > 0 && <div className="absolute bottom-2 right-2 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm animate-bounce">{(bets.xiu).toLocaleString()}</div>}
           </button>
-          <button disabled={phase !== "BETTING"} onClick={(e) => handleBet('tai', e)} className={`relative rounded-xl border-2 transition-all flex flex-col items-center justify-center overflow-hidden ${getWinnerStyle('tai')} ${phase === "BETTING" ? 'border-sky-500/40 bg-sky-950/10 active:scale-95' : 'border-slate-800 opacity-50 cursor-not-allowed'}`}>
+          <button disabled={phase !== "BETTING"} onClick={(e) => handleBet('tai', e)} className={`tg-bet-card relative rounded-xl border-2 transition-all flex flex-col items-center justify-center overflow-hidden ${getWinnerStyle('tai')} ${phase === "BETTING" ? 'border-sky-500/40 bg-sky-950/10 active:scale-95' : 'border-slate-800 opacity-50 cursor-not-allowed'}`}>
             <Crosshair className="absolute top-2 left-2 opacity-20 text-sky-500" size={14} />
             <span className="text-[10px] font-black text-sky-500/60 uppercase mb-1">Bravo</span>
-            <span className="text-4xl font-black tactical-font text-sky-500">TÀI</span>
+            <span className="text-[clamp(2rem,9vw,2.25rem)] font-black tactical-font text-sky-500">TÀI</span>
             <div className="flex items-center gap-2 mt-1 opacity-80">
                 <div className="flex items-center gap-0.5 text-[9px] font-bold text-sky-400"><User size={10} /> {taiStats.totalPlayers}</div>
                 <div className="flex items-center gap-0.5 text-[9px] font-bold text-sky-400"><Coins size={10} /> {(taiStats.totalAmount/1000000).toFixed(1)}M</div>
@@ -766,22 +1149,13 @@ const App = () => {
             {bets.tai > 0 && <div className="absolute bottom-2 right-2 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-sm animate-bounce">{(bets.tai).toLocaleString()}</div>}
           </button>
         </div>
-        <button disabled={phase !== "BETTING"} onClick={(e) => handleBet('bao', e)} className={`w-full py-5 rounded-xl border-2 transition-all relative flex flex-col items-center justify-center overflow-hidden ${getWinnerStyle('bao')} ${phase === "BETTING" ? 'border-amber-500/40 bg-amber-950/10 active:scale-95' : 'border-slate-800 opacity-50 cursor-not-allowed'}`}>
-          <div className="absolute inset-0 opacity-10 bg-[repeating-linear-gradient(45deg,#f59e0b,#f59e0b_10px,#000_10px,#000_20px)]" />
-          <div className="flex items-center gap-3"><ShieldAlert size={20} className="text-amber-500 animate-pulse" /><span className="text-2xl font-black tactical-font text-amber-500 italic uppercase">BÃO TÁP (X30)</span></div>
-          <div className="flex items-center gap-3 mt-1 opacity-80 absolute bottom-2">
-                <div className="flex items-center gap-0.5 text-[9px] font-bold text-amber-500"><User size={10} /> {baoStats.totalPlayers}</div>
-                <div className="flex items-center gap-0.5 text-[9px] font-bold text-amber-500"><Coins size={10} /> {(baoStats.totalAmount/1000000).toFixed(1)}M</div>
-          </div>
-          {bets.bao > 0 && <div className="absolute top-1 right-4 bg-amber-500 text-black text-[10px] font-black px-3 py-0.5 rounded-sm animate-bounce">{(bets.bao).toLocaleString()}</div>}
-        </button>
       </div>
 
       {/* Chip Selection Area */}
-      <div className="px-4 pb-6 pt-1 z-50">
-        <div className={`rounded-xl border py-3 px-2 flex justify-center gap-1 shadow-2xl overflow-hidden backdrop-blur-xl transition-colors ${isDarkMode ? 'border-white/10 bg-slate-900/90' : 'border-black/10 bg-white/90'}`}>
+      <div className="px-3 pb-4 pt-1 z-50">
+        <div className={`tg-chip-deck mobile-chip-bar rounded-xl border py-3 px-2 flex justify-center gap-1 shadow-2xl overflow-hidden backdrop-blur-xl transition-colors ${isDarkMode ? 'border-white/10 bg-slate-900/90' : 'border-black/10 bg-white/90'}`}>
             {CHIP_LIST.map((chip) => (
-                <MilitaryChip key={chip.value} value={chip.value} colorClass={chip.color} isSelected={selectedChip === chip.value} onClick={() => setSelectedChip(chip.value)} isDarkMode={isDarkMode} />
+                <MilitaryChip key={chip.value} value={chip.value} colorClass={chip.color} isSelected={selectedChip === chip.value} onClick={() => setSelectedChip(chip.value)} isDarkMode={isDarkMode} isCompact={isCompactMobile} />
             ))}
         </div>
       </div>
@@ -838,10 +1212,9 @@ const App = () => {
                 <button onClick={() => setShowRoadmap(false)} className="p-2 border rounded-full"><X size={20}/></button>
             </div>
             <div className={`flex-1 border rounded-xl p-4 overflow-y-auto space-y-6 ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-white border-slate-300'}`}>
-                <div className="grid grid-cols-3 gap-3 text-[9px] font-black uppercase text-center">
+                <div className="grid grid-cols-2 gap-3 text-[9px] font-black uppercase text-center">
                     <div className="bg-sky-600/10 p-2 rounded-lg text-sky-400">Tài: {gameHistory.filter(x=>x.type==='T').length}</div>
                     <div className="bg-red-600/10 p-2 rounded-lg text-red-400">Xỉu: {gameHistory.filter(x=>x.type==='X').length}</div>
-                    <div className="bg-yellow-600/10 p-2 rounded-lg text-yellow-400">Bão: {gameHistory.filter(x=>x.type==='B').length}</div>
                 </div>
                 <div><h3 className="text-[10px] font-black uppercase mb-3 text-slate-400 tracking-widest">Biểu đồ Radar</h3>{renderRoadmap()}</div>
                 <div>
@@ -895,29 +1268,6 @@ const App = () => {
         </div>
       )}
 
-      {showChat && (
-        <div className={`absolute inset-0 z-[200] backdrop-blur-3xl p-6 flex flex-col animate-in slide-in-from-right duration-300 ${isDarkMode ? 'bg-slate-950/98' : 'bg-slate-100/98'}`}>
-            <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center gap-3 text-purple-400"><Radio size={24} /><h2 className="text-xl tactical-font uppercase">Liên Lạc</h2></div>
-                <button onClick={() => setShowChat(false)} className="p-2 border rounded-full"><X size={20}/></button>
-            </div>
-            <div className={`flex-1 border rounded-xl p-4 overflow-y-auto mb-4 flex flex-col gap-3 transition-colors ${isDarkMode ? 'bg-black/40 border-white/5' : 'bg-white border-slate-300 shadow-inner'}`}>
-                {messages.map(msg => (
-                    <div key={msg.id} className={`flex flex-col ${msg.user === 'duog' ? 'items-end' : 'items-start'}`}>
-                        <div className="flex items-center gap-2 mb-1"><span className={`text-[8px] font-black uppercase ${msg.user === 'duog' ? 'text-sky-400' : 'text-gray-500'}`}>{String(msg.user)}</span></div>
-                        <div className={`px-3 py-2 rounded-lg text-xs max-w-[80%] border ${msg.user === 'duog' ? 'bg-sky-600/20 border-sky-500/30 text-sky-100' : 'bg-slate-100 border-slate-200 text-slate-800'}`}>
-                            {String(msg.text)}
-                        </div>
-                    </div>
-                ))}
-            </div>
-            <div className={`flex gap-2 p-2 rounded-xl border items-center ${isDarkMode ? 'bg-white/5 border-white/10' : 'bg-white border-slate-300'}`}>
-                <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Truyền tin..." className="flex-1 bg-transparent border-none outline-none text-xs p-2"/>
-                <button onClick={handleSendMessage} className="p-2 bg-sky-600 rounded-lg"><Send size={16}/></button>
-            </div>
-        </div>
-      )}
-
       {showHelp && (
         <div className={`absolute inset-0 z-[200] backdrop-blur-3xl p-6 flex flex-col animate-in zoom-in duration-300 ${isDarkMode ? 'bg-slate-950/95' : 'bg-slate-100/95'}`}>
             <div className="flex justify-between items-center mb-6">
@@ -938,3 +1288,4 @@ const App = () => {
 };
 
 export default App;
+

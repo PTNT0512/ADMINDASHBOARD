@@ -1,9 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Volume2, VolumeX, RefreshCw, Zap, Target, Shield, Radio, Flame, Crosshair } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, pickByWinRate } from './winRateControl';
 
-// --- BỘ SƯU TẬP ICON CHIBI TACTICAL (SVG) ---
+// --- B? SUU T?P ICON CHIBI TACTICAL (SVG) ---
 const Icons = {
-  // RANK -> Chibi Chevron (Bo tròn, mập mạp)
+  // RANK -> Chibi Chevron (Bo tr?n, m?p m?p)
   RANK: () => (
     <svg viewBox="0 0 100 80" className="w-full h-full drop-shadow-lg">
       <defs>
@@ -12,123 +14,123 @@ const Icons = {
           <stop offset="100%" stopColor="#2563eb" />
         </linearGradient>
       </defs>
-      {/* Nền khiên tròn */}
+      {/* N?n khi?n tr?n */}
       <path d="M50,10 L85,25 Q85,55 50,75 Q15,55 15,25 Z" fill="#1e3a8a" stroke="#3b82f6" strokeWidth="3" rx="10" />
-      {/* Vạch quân hàm mập */}
+      {/* V?ch qu?n h?m m?p */}
       <path d="M25,35 L50,50 L75,35" fill="none" stroke="#fff" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M25,20 L50,35 L75,20" fill="none" stroke="rgba(255,255,255,0.5)" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ),
-  // NUKE -> Chibi Bomb (Tròn vo, cánh ngắn)
+  // NUKE -> Chibi Bomb (Tr?n vo, c?nh ng?n)
   NUKE: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Thân bom tròn */}
+      {/* Th?n bom tr?n */}
       <circle cx="50" cy="55" r="35" fill="#ef4444" stroke="#7f1d1d" strokeWidth="3" />
-      {/* Đỉnh bom */}
+      {/* ??nh bom */}
       <rect x="35" y="10" width="30" height="15" rx="5" fill="#991b1b" />
-      {/* Cánh đuôi nhỏ xíu */}
+      {/* C?nh du?i nh? x?u */}
       <path d="M15,55 L5,75 L25,75 Z" fill="#991b1b" />
       <path d="M85,55 L95,75 L75,75 Z" fill="#991b1b" />
-      {/* Biểu tượng phóng xạ cute */}
+      {/* Bi?u tu?ng ph?ng x? cute */}
       <circle cx="50" cy="55" r="12" fill="#222" />
       <circle cx="50" cy="55" r="5" fill="#facc15" />
       <path d="M50,55 L50,38" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
       <path d="M50,55 L65,63" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
       <path d="M50,55 L35,63" stroke="#facc15" strokeWidth="4" strokeLinecap="round" />
-      {/* Highlight bóng bẩy */}
+      {/* Highlight b?ng b?y */}
       <ellipse cx="65" cy="40" rx="8" ry="4" fill="#fff" opacity="0.4" transform="rotate(-45 65 40)" />
     </svg>
   ),
-  // MEDAL -> Chibi Medal (Tròn, dây ngắn)
+  // MEDAL -> Chibi Medal (Tr?n, d?y ng?n)
   MEDAL: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Dây đeo ngắn */}
+      {/* D?y deo ng?n */}
       <path d="M35,10 L35,45 L50,55 L65,45 L65,10 Z" fill="#3b82f6" stroke="#1d4ed8" strokeWidth="2" />
-      {/* Huy chương vàng to */}
+      {/* Huy chuong v?ng to */}
       <circle cx="50" cy="65" r="28" fill="#facc15" stroke="#b45309" strokeWidth="3" />
       <circle cx="50" cy="65" r="20" fill="none" stroke="#fef08a" strokeWidth="2" strokeDasharray="4 2" />
-      {/* Ngôi sao ở giữa */}
+      {/* Ng?i sao ? gi?a */}
       <path d="M50,55 L54,63 L62,63 L56,69 L58,77 L50,72 L42,77 L44,69 L38,63 L46,63 Z" fill="#b45309" />
     </svg>
   ),
-  // RADAR -> Chibi Screen (Màn hình cong, quét to)
+  // RADAR -> Chibi Screen (M?n h?nh cong, qu?t to)
   RADAR: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Khung màn hình bo tròn */}
+      {/* Khung m?n h?nh bo tr?n */}
       <rect x="10" y="15" width="80" height="70" rx="15" fill="#064e3b" stroke="#34d399" strokeWidth="4" />
-      {/* Màn hình xanh */}
+      {/* M?n h?nh xanh */}
       <circle cx="50" cy="50" r="28" fill="#065f46" />
-      {/* Vạch quét */}
+      {/* V?ch qu?t */}
       <path d="M50,50 L50,22 A28,28 0 0,1 78,50" fill="rgba(52, 211, 153, 0.4)" />
       <line x1="50" y1="50" x2="78" y2="50" stroke="#34d399" strokeWidth="2" strokeLinecap="round" />
-      {/* Chấm đỏ mục tiêu */}
+      {/* Ch?m d? m?c ti?u */}
       <circle cx="65" cy="35" r="4" fill="#ef4444" className="animate-ping" />
-      {/* Ăng ten nhỏ trên đầu */}
+      {/* Ang ten nh? tr?n d?u */}
       <path d="M50,15 L50,5" stroke="#34d399" strokeWidth="4" strokeLinecap="round" />
       <circle cx="50" cy="5" r="3" fill="#34d399" />
     </svg>
   ),
-  // SCOPE -> Chibi Crosshair (Ống ngắm to, kính dày)
+  // SCOPE -> Chibi Crosshair (?ng ng?m to, k?nh d?y)
   SCOPE: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Vỏ ngoài dày */}
+      {/* V? ngo?i d?y */}
       <circle cx="50" cy="50" r="42" fill="#1f2937" stroke="#ef4444" strokeWidth="6" />
-      {/* Kính */}
+      {/* K?nh */}
       <circle cx="50" cy="50" r="35" fill="rgba(239, 68, 68, 0.1)" />
-      {/* Tâm ngắm bo tròn */}
+      {/* T?m ng?m bo tr?n */}
       <line x1="25" y1="50" x2="75" y2="50" stroke="#ef4444" strokeWidth="4" strokeLinecap="round" />
       <line x1="50" y1="25" x2="50" y2="75" stroke="#ef4444" strokeWidth="4" strokeLinecap="round" />
       <circle cx="50" cy="50" r="15" fill="none" stroke="#ef4444" strokeWidth="2" />
       <circle cx="50" cy="50" r="4" fill="#ef4444" />
-      {/* Highlight kính */}
+      {/* Highlight k?nh */}
       <path d="M60,30 Q70,40 70,55" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" strokeLinecap="round" />
     </svg>
   ),
-  // GRENADE -> Chibi Pinecone (Tròn ung ủng)
+  // GRENADE -> Chibi Pinecone (Tr?n ung ?ng)
   GRENADE: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Thân lựu đạn bầu bĩnh */}
+      {/* Th?n l?u d?n b?u binh */}
       <path d="M25,35 Q20,85 50,90 Q80,85 75,35 Z" fill="#15803d" stroke="#4ade80" strokeWidth="3" />
-      {/* Các ô vuông (mập) */}
+      {/* C?c ? vu?ng (m?p) */}
       <rect x="35" y="40" width="12" height="12" rx="3" fill="#14532d" fillOpacity="0.5" />
       <rect x="53" y="40" width="12" height="12" rx="3" fill="#14532d" fillOpacity="0.5" />
       <rect x="35" y="60" width="12" height="12" rx="3" fill="#14532d" fillOpacity="0.5" />
       <rect x="53" y="60" width="12" height="12" rx="3" fill="#14532d" fillOpacity="0.5" />
-      {/* Chốt lựu đạn to */}
+      {/* Ch?t l?u d?n to */}
       <rect x="40" y="20" width="20" height="15" rx="4" fill="#64748b" />
-      {/* Vòng giật tròn to */}
+      {/* V?ng gi?t tr?n to */}
       <circle cx="70" cy="25" r="10" fill="none" stroke="#94a3b8" strokeWidth="3" />
     </svg>
   ),
-  // AMMO -> Chibi Bullet (Ngắn, đầu tròn)
+  // AMMO -> Chibi Bullet (Ng?n, d?u tr?n)
   AMMO: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Vỏ đạn mập */}
+      {/* V? d?n m?p */}
       <rect x="30" y="40" width="40" height="45" rx="5" fill="#b45309" stroke="#f59e0b" strokeWidth="3" />
-      {/* Đầu đạn tròn vo */}
+      {/* ??u d?n tr?n vo */}
       <path d="M30,40 L70,40 Q70,10 50,10 Q30,10 30,40 Z" fill="#fcd34d" stroke="#f59e0b" strokeWidth="3" />
-      {/* Đai đạn */}
+      {/* ?ai d?n */}
       <rect x="28" y="75" width="44" height="8" rx="2" fill="#78350f" />
-      {/* Highlight bóng */}
+      {/* Highlight b?ng */}
       <path d="M40,20 Q45,20 45,60" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="3" strokeLinecap="round" />
     </svg>
   ),
-  // DRONE -> Chibi Quadcopter (Tròn, cánh quạt to)
+  // DRONE -> Chibi Quadcopter (Tr?n, c?nh qu?t to)
   DRONE: () => (
     <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-      {/* Thân drone tròn */}
+      {/* Th?n drone tr?n */}
       <circle cx="50" cy="50" r="18" fill="#ef4444" stroke="#7f1d1d" strokeWidth="2" />
-      {/* Mắt camera to */}
+      {/* M?t camera to */}
       <circle cx="50" cy="50" r="8" fill="#38bdf8" />
       <circle cx="52" cy="48" r="3" fill="#fff" opacity="0.8" />
-      {/* Cánh quạt (4 góc) */}
+      {/* C?nh qu?t (4 g?c) */}
       <g stroke="#555" strokeWidth="3" strokeLinecap="round">
         <line x1="35" y1="35" x2="15" y2="15" />
         <line x1="65" y1="35" x2="85" y2="15" />
         <line x1="35" y1="65" x2="15" y2="85" />
         <line x1="65" y1="65" x2="85" y2="85" />
       </g>
-      {/* Vòng bảo vệ cánh quạt */}
+      {/* V?ng b?o v? c?nh qu?t */}
       <circle cx="15" cy="15" r="10" fill="rgba(255,255,255,0.1)" stroke="#555" strokeWidth="2" className="animate-spin" />
       <circle cx="85" cy="15" r="10" fill="rgba(255,255,255,0.1)" stroke="#555" strokeWidth="2" className="animate-spin" />
       <circle cx="85" cy="85" r="10" fill="rgba(255,255,255,0.1)" stroke="#555" strokeWidth="2" className="animate-spin" />
@@ -137,7 +139,7 @@ const Icons = {
   )
 };
 
-// --- CẤU HÌNH VẬT PHẨM & MÀU SẮC ---
+// --- C?U H?NH V?T PH?M & M?U S?C ---
 const ITEMS = [
   { id: 'RANK', label: 'RANK', group: 'BLUE', odds: 100, icon: Icons.RANK, color: '#1e3a8a' }, // Special
   { id: 'NUKE', label: 'NUKE', group: 'RED', odds: 40, icon: Icons.NUKE, color: '#450a0a' },
@@ -156,11 +158,11 @@ const COLORS = {
   BLUE: { name: 'BLUE', hex: '#3b82f6', bg: '#172554', border: '#1d4ed8' }
 };
 
-// BẢN ĐỒ VÒNG TRÒN (24 ô)
+// B?N ?? V?NG TR?N (24 ?)
 const BOARD_MAP = [
   'AMMO', 'SCOPE', 'RANK', 'RANK', 'DRONE', 'DRONE', 'RADAR', // Top
   'RADAR', 'NUKE', // Right
-  'DRONE', 'AMMO', 'AMMO', 'SCOPE', 'NUKE', 'NUKE', 'MEDAL', // Bottom (Ngược)
+  'DRONE', 'AMMO', 'AMMO', 'SCOPE', 'NUKE', 'NUKE', 'MEDAL', // Bottom (Ngu?c)
   'MEDAL', 'GRENADE', // Left
   'GRENADE', 'DRONE', 'DRONE', 'MEDAL', 'MEDAL', 'AMMO' // Closing
 ];
@@ -170,7 +172,7 @@ const PERIMETER_ITEMS = Array.from({length: 24}).map((_, i) => {
     return ITEMS.find(it => it.id === key) || ITEMS[7];
 });
 
-// Hàm tính vị trí Grid 7x7
+// H?m t?nh v? tr? Grid 7x7
 const getGridPosition = (index) => {
     if (index < 7) return { row: 1, col: index + 1 };
     if (index < 12) return { row: index - 5, col: 7 };
@@ -180,12 +182,19 @@ const getGridPosition = (index) => {
 
 export default function TacticalKingCrown() {
   const [credits, setCredits] = useState(10000);
-  const [itemBets, setItemBets] = useState({}); // Cược vật phẩm
-  const [colorBets, setColorBets] = useState({ RED: 0, GREEN: 0, YELLOW: 0 }); // Cược màu
+
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setCredits,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
+  const [itemBets, setItemBets] = useState({}); // Cu?c v?t ph?m
+  const [colorBets, setColorBets] = useState({ RED: 0, GREEN: 0, YELLOW: 0 }); // Cu?c m?u
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [lastWin, setLastWin] = useState(0);
-  const [message, setMessage] = useState("SẴN SÀNG TÁC CHIẾN");
+  const [message, setMessage] = useState("S?N S?NG T?C CHI?N");
   const [isMuted, setIsMuted] = useState(false);
 
   const audioCtxRef = useRef(null);
@@ -242,18 +251,18 @@ export default function TacticalKingCrown() {
       setCredits(prev => prev - 10);
       setItemBets(prev => ({ ...prev, [itemId]: (prev[itemId] || 0) + 10 }));
       setLastWin(0);
-      setMessage("ĐANG NẠP ĐẠN...");
+      setMessage("?ANG N?P ??N...");
     }
   };
 
   const handleColorBet = (colorKey) => {
     if (isSpinning) return;
-    if (credits >= 50) { // Cược màu đắt hơn
+    if (credits >= 50) { // Cu?c m?u d?t hon
       playSound('click');
       setCredits(prev => prev - 50);
       setColorBets(prev => ({ ...prev, [colorKey]: prev[colorKey] + 50 }));
       setLastWin(0);
-      setMessage(`ĐẶT CƯỢC ${colorKey}...`);
+      setMessage(`??T CU?C ${colorKey}...`);
     }
   };
 
@@ -264,7 +273,7 @@ export default function TacticalKingCrown() {
       setCredits(prev => prev + totalItemBet + totalColorBet);
       setItemBets({});
       setColorBets({ RED: 0, GREEN: 0, YELLOW: 0 });
-      setMessage("ĐÃ HỦY LỆNH");
+      setMessage("?? H?Y L?NH");
   };
 
   // --- GAMEPLAY ---
@@ -273,7 +282,7 @@ export default function TacticalKingCrown() {
     const totalColorBet = Object.values(colorBets).reduce((a, b) => a + b, 0);
     
     if (totalItemBet + totalColorBet === 0) {
-        setMessage("CHƯA CÓ LỆNH CƯỢC!");
+        setMessage("CHUA C? L?NH CU?C!");
         return;
     }
     if (isSpinning) return;
@@ -281,10 +290,28 @@ export default function TacticalKingCrown() {
     initAudio();
     setIsSpinning(true);
     setLastWin(0);
-    setMessage("ĐANG QUÉT MỤC TIÊU...");
+    setMessage("?ANG QU?T M?C TI?U...");
 
-    // RNG
-    const resultIndex = Math.floor(Math.random() * 24); 
+    const calculatePotentialWin = (resultItem) => {
+      let totalWin = 0;
+      const itemBet = itemBets[resultItem.id] || 0;
+      if (itemBet > 0) totalWin += itemBet * resultItem.odds;
+      if (resultItem.group !== 'BLUE') {
+        const colorBet = colorBets[resultItem.group] || 0;
+        if (colorBet > 0) totalWin += colorBet * 2;
+      }
+      return totalWin;
+    };
+
+    const winCandidates = [];
+    const loseCandidates = [];
+    PERIMETER_ITEMS.forEach((item, idx) => {
+      if (calculatePotentialWin(item) > 0) winCandidates.push(idx);
+      else loseCandidates.push(idx);
+    });
+
+    const chosenIndex = pickByWinRate('xeng', winCandidates, loseCandidates);
+    const resultIndex = Number.isInteger(chosenIndex) ? chosenIndex : Math.floor(Math.random() * 24);
     const resultItem = PERIMETER_ITEMS[resultIndex];
 
     let currentStep = 0;
@@ -314,28 +341,28 @@ export default function TacticalKingCrown() {
   const calculateWin = (resultItem) => {
       let totalWin = 0;
 
-      // 1. Thắng Vật Phẩm
+      // 1. Th?ng V?t Ph?m
       const itemBet = itemBets[resultItem.id] || 0;
       if (itemBet > 0) {
           totalWin += itemBet * resultItem.odds;
       }
 
-      // 2. Thắng Màu (Tỉ lệ x2 cho Đỏ/Xanh/Vàng nếu trúng)
-      // Rank (Blue) không ăn màu nào
+      // 2. Th?ng M?u (T? l? x2 cho ??/Xanh/V?ng n?u tr?ng)
+      // Rank (Blue) kh?ng an m?u n?o
       if (resultItem.group !== 'BLUE') {
           const colorBet = colorBets[resultItem.group] || 0;
           if (colorBet > 0) {
-              totalWin += colorBet * 2; // Tỉ lệ x2 cho màu
+              totalWin += colorBet * 2; // T? l? x2 cho m?u
           }
       }
 
       if (totalWin > 0) {
           setLastWin(totalWin);
           setCredits(prev => prev + totalWin);
-          setMessage(`MỤC TIÊU BỊ HẠ! +${totalWin.toLocaleString()}`);
+          setMessage(`M?C TI?U B? H?! +${totalWin.toLocaleString()}`);
           playSound('win');
       } else {
-          setMessage("TRƯỢT MỤC TIÊU");
+          setMessage("TRU?T M?C TI?U");
       }
   };
 
@@ -512,3 +539,4 @@ export default function TacticalKingCrown() {
     </div>
   );
 }
+

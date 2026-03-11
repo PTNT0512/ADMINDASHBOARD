@@ -1,0 +1,36 @@
+{
+  "ver": "2.3.5",
+  "uuid": "29afb685-c08d-464c-8f68-ca774473a228",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "genMipmaps": false,
+  "packable": true,
+  "width": 205,
+  "height": 205,
+  "platformSettings": {},
+  "subMetas": {
+    "taigame1": {
+      "ver": "1.0.4",
+      "uuid": "48266256-92e5-463b-8221-12cc13ac8f03",
+      "rawTextureUuid": "29afb685-c08d-464c-8f68-ca774473a228",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 205,
+      "height": 205,
+      "rawWidth": 205,
+      "rawHeight": 205,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

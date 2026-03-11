@@ -1,14 +1,29 @@
-// Simple socket.io client for dashboard panels
-import io from 'socket.io-client';
+﻿import io from 'socket.io-client';
+import { getDashboardSocketBaseUrl } from '../utils/runtime-endpoints';
+import { normalizePayload } from '../utils/mojibake';
 
-// You can change this URL to your backend API host if needed
-
-const SOCKET_URL = window.SOCKET_API_URL || 'http://localhost:4001';
+const SOCKET_URL = getDashboardSocketBaseUrl();
 
 let socket;
+
+const attachIncomingNormalization = (instance) => {
+  if (!instance || instance.__mojibakeNormalized) return instance;
+
+  const originalOnevent = instance.onevent;
+  instance.onevent = function patchedOnevent(packet) {
+    if (packet && Array.isArray(packet.data)) {
+      packet.data = packet.data.map((item) => normalizePayload(item));
+    }
+    return originalOnevent.call(this, packet);
+  };
+
+  instance.__mojibakeNormalized = true;
+  return instance;
+};
+
 export function getSocket() {
   if (!socket) {
-    socket = io(SOCKET_URL, { transports: ['websocket'] });
+    socket = attachIncomingNormalization(io(SOCKET_URL, { transports: ['websocket'] }));
   }
   return socket;
 }

@@ -1,0 +1,36 @@
+{
+  "ver": "1.1.2",
+  "uuid": "1d17a5ee-f7bc-48c1-b11f-e4c8660e4616",
+  "isBundle": true,
+  "bundleName": "TaiXiuMD5",
+  "priority": "5",
+  "compressionType": {
+    "android": "default",
+    "web-mobile": "default",
+    "ios": "default",
+    "web-desktop": "merge_all_json",
+    "alipay": "zip"
+  },
+  "optimizeHotUpdate": {
+    "android": false,
+    "web-mobile": false,
+    "ios": false,
+    "web-desktop": false,
+    "alipay": false
+  },
+  "inlineSpriteFrames": {
+    "android": false,
+    "web-mobile": false,
+    "ios": false,
+    "web-desktop": true,
+    "alipay": false
+  },
+  "isRemoteBundle": {
+    "android": false,
+    "web-mobile": false,
+    "ios": false,
+    "web-desktop": false,
+    "alipay": false
+  },
+  "subMetas": {}
+}

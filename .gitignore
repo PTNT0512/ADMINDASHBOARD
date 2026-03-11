@@ -11,6 +11,12 @@ build
 dist
 release
 out
+dist-center
+dist-dashboard
+dist_electron
+.vite-center
+.vite-dashboard
+.tmp-*
 
 # Misc
 .DS_Store

@@ -1,0 +1,244 @@
+
+crownboy.png
+size: 2048,512
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+ao
+  rotate: false
+  xy: 930, 383
+  size: 147, 124
+  orig: 147, 124
+  offset: 0, 0
+  index: -1
+bg1
+  rotate: true
+  xy: 314, 259
+  size: 248, 403
+  orig: 248, 403
+  offset: 0, 0
+  index: -1
+bg2
+  rotate: false
+  xy: 719, 335
+  size: 209, 172
+  orig: 209, 172
+  offset: 0, 0
+  index: -1
+bg3
+  rotate: false
+  xy: 314, 146
+  size: 192, 111
+  orig: 192, 111
+  offset: 0, 0
+  index: -1
+do
+  rotate: false
+  xy: 479, 139
+  size: 5, 5
+  orig: 5, 5
+  offset: 0, 0
+  index: -1
+e1
+  rotate: true
+  xy: 248, 88
+  size: 40, 61
+  orig: 40, 61
+  offset: 0, 0
+  index: -1
+e2
+  rotate: false
+  xy: 413, 13
+  size: 42, 59
+  orig: 42, 59
+  offset: 0, 0
+  index: -1
+e3
+  rotate: false
+  xy: 889, 123
+  size: 40, 45
+  orig: 40, 45
+  offset: 0, 0
+  index: -1
+khoi/Layer 1
+  rotate: true
+  xy: 719, 263
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 10
+  rotate: true
+  xy: 1409, 365
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 11
+  rotate: true
+  xy: 1574, 365
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 12
+  rotate: true
+  xy: 1739, 365
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 13
+  rotate: false
+  xy: 1904, 344
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 14
+  rotate: false
+  xy: 1976, 344
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 15
+  rotate: true
+  xy: 508, 115
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 16
+  rotate: false
+  xy: 673, 94
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 17
+  rotate: false
+  xy: 745, 98
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 18
+  rotate: false
+  xy: 817, 98
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 19
+  rotate: true
+  xy: 314, 74
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 2
+  rotate: true
+  xy: 508, 187
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 20
+  rotate: true
+  xy: 479, 43
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 21
+  rotate: true
+  xy: 745, 26
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 22
+  rotate: true
+  xy: 248, 2
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 23
+  rotate: false
+  xy: 889, 170
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 24
+  rotate: false
+  xy: 961, 218
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 3
+  rotate: true
+  xy: 1079, 437
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 4
+  rotate: true
+  xy: 1244, 437
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 5
+  rotate: true
+  xy: 1409, 437
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 6
+  rotate: true
+  xy: 1574, 437
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 7
+  rotate: true
+  xy: 1739, 437
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 8
+  rotate: true
+  xy: 1079, 365
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+khoi/Layer 9
+  rotate: true
+  xy: 1244, 365
+  size: 70, 163
+  orig: 70, 163
+  offset: 0, 0
+  index: -1
+nguoi
+  rotate: false
+  xy: 2, 130
+  size: 310, 377
+  orig: 310, 377
+  offset: 0, 0
+  index: -1
+txt
+  rotate: false
+  xy: 2, 29
+  size: 244, 99
+  orig: 244, 99
+  offset: 0, 0
+  index: -1

@@ -1,0 +1,27 @@
+
+ef_tai.png
+size: 430,226
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+bg
+  rotate: false
+  xy: 2, 18
+  size: 281, 206
+  orig: 283, 208
+  offset: 1, 1
+  index: -1
+bg2
+  rotate: true
+  xy: 285, 88
+  size: 136, 143
+  orig: 138, 145
+  offset: 1, 1
+  index: -1
+tai
+  rotate: false
+  xy: 285, 2
+  size: 127, 84
+  orig: 129, 86
+  offset: 1, 1
+  index: -1

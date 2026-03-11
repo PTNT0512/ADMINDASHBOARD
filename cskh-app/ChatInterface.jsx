@@ -12,16 +12,15 @@ const formatRelativeTime = (dateInput) => {
   const date = new Date(dateInput);
   const now = new Date();
   const diff = Math.floor((now - date) / 1000);
-
-  if (diff < 60) return 'vừa xong';
-  if (diff < 3600) return `${Math.floor(diff / 60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)} giờ trước`;
+  if (diff < 60) return 'vua xong';
+  if (diff < 3600) return `${Math.floor(diff / 60)} phut truoc`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} gio truoc`;
   return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
 const ChatInterface = () => {
-  const [users, setUsers] = useState([]);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
+  const [pendingTicket, setPendingTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [imagePreview, setImagePreview] = useState(null);
@@ -29,143 +28,34 @@ const ChatInterface = () => {
   const [typingUsers, setTypingUsers] = useState(new Set());
   const messagesEndRef = useRef(null);
   const fileInputRef = useRef(null);
-  const selectedUserRef = useRef(selectedUser);
+  const textAreaRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const { showToast } = useToast();
-  const [, forceUpdate] = useState(0);
 
-  useEffect(() => {
-    const timer = setInterval(() => forceUpdate(n => n + 1), 60000);
-    return () => clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
-    selectedUserRef.current = selectedUser;
-    return () => {
-      if (isTypingRef.current && selectedUser) {
-        socket.emit('admin_stop_typing', { userId: selectedUser.userId });
-      }
-      isTypingRef.current = false;
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    };
-  }, [selectedUser]);
-
-  const playNotificationSound = () => {
-    const audio = new Audio('/notification.mp3'); // Đặt file âm thanh trong thư mục public
-    audio.play().catch(e => console.error("Error playing sound:", e));
+  const getCurrentAgent = () => {
+    try {
+      const raw = localStorage.getItem('cskhUser');
+      const me = raw ? JSON.parse(raw) : null;
+      return {
+        id: me?._id || me?.id || '',
+        username: me?.username || '',
+        fullName: me?.fullName || '',
+        name: me?.fullName || me?.username || ''
+      };
+    } catch (e) {
+      return { id: '', username: '', fullName: '', name: '' };
+    }
   };
 
-  useEffect(() => {
-    if (!socket.connected) socket.connect();
-    
-    socket.on('connect', () => console.log('✅ Socket CSKH Connected:', socket.id));
-    socket.on('disconnect', () => console.log('❌ Socket CSKH Disconnected'));
-    socket.on('connect_error', (err) => console.error('⚠️ Socket Connection Error:', err));
-
-    fetchUsers();
-
-    function onNewMessage(newMessage) {
-      console.log('📩 New Message Received:', newMessage);
-      setUsers(prevUsers => {
-        const userIndex = prevUsers.findIndex(u => u.userId === newMessage.userId);
-        let updatedUsers;
-        if (userIndex > -1) {
-          const userToUpdate = { ...prevUsers[userIndex] };
-          userToUpdate.lastMessage = newMessage.imageBase64 ? '[Hình ảnh]' : newMessage.content;
-          userToUpdate.createdAt = newMessage.createdAt;
-          if (selectedUserRef.current?.userId !== newMessage.userId) {
-            userToUpdate.unreadCount = (userToUpdate.unreadCount || 0) + 1;
-          }
-          updatedUsers = [userToUpdate, ...prevUsers.filter(u => u.userId !== newMessage.userId)];
-        } else {
-          updatedUsers = [{
-            userId: newMessage.userId,
-            username: newMessage.username,
-            lastMessage: newMessage.imageBase64 ? '[Hình ảnh]' : newMessage.content,
-            unreadCount: selectedUserRef.current?.userId === newMessage.userId ? 0 : 1,
-            createdAt: newMessage.createdAt
-          }, ...prevUsers];
-        }
-        return updatedUsers;
-      });
-
-      if (selectedUserRef.current?.userId === newMessage.userId) {
-        setMessages(prevMessages => {
-          const incomingId = newMessage._id || newMessage.id;
-          if (prevMessages.some(m => String(m._id || m.id) === String(incomingId))) return prevMessages;
-          return [...prevMessages, newMessage];
-        });
-        // Mark as read immediately if chat is open
-        fetch(`${API_URL}/mark-read`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: newMessage.userId })
-        });
-      } else {
-        playNotificationSound();
-        showToast(`Tin nhắn mới từ ${newMessage.username || newMessage.userId}: ${newMessage.content || '[Hình ảnh]'}`, 'info');
-      }
-    }
-
-    function onAdminReplied(newMessage) {
-        if (selectedUserRef.current?.userId === newMessage.userId) {
-            setMessages(prevMessages => {
-                const newMessages = prevMessages.filter(m => !m.isTemp);
-                const incomingId = newMessage._id || newMessage.id;
-                if (newMessages.some(m => String(m._id || m.id) === String(incomingId))) return newMessages;
-                return [...newMessages, newMessage];
-            });
-        }
-    }
-
-    function onMessageUnsent(unsentMessageId) {
-        if (selectedUserRef.current) {
-            setMessages(prevMessages => prevMessages.filter(m => (m._id || m.id) !== unsentMessageId));
-        }
-    }
-
-    function onTyping({ userId }) {
-        setTypingUsers(prev => new Set(prev).add(userId));
-    }
-
-    function onStopTyping({ userId }) {
-        setTypingUsers(prev => {
-            const next = new Set(prev);
-            next.delete(userId);
-            return next;
-        });
-    }
-
-    socket.on('new_message', onNewMessage);
-    socket.on('admin_replied', onAdminReplied);
-    socket.on('message_unsent', onMessageUnsent);
-    socket.on('typing', onTyping);
-    socket.on('stop_typing', onStopTyping);
-
-    return () => {
-      socket.off('new_message', onNewMessage);
-      socket.off('admin_replied', onAdminReplied);
-      socket.off('message_unsent', onMessageUnsent);
-      socket.off('typing', onTyping);
-      socket.off('stop_typing', onStopTyping);
-    };
-  }, []);
-
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await fetch(`${API_URL}/users`);
-      const result = await response.json();
-      if (result.success) {
-        setUsers(result.data);
-      }
-    } catch (error) {
-      console.error("Lỗi tải danh sách người dùng:", error);
-    }
+  const registerPresence = () => {
+    const me = getCurrentAgent();
+    if (!me.name) return;
+    socket.emit('cskh-agent-online', {
+      id: me.id,
+      username: me.username,
+      fullName: me.fullName
+    });
   };
 
   const fetchMessages = async (userId) => {
@@ -173,41 +63,200 @@ const ChatInterface = () => {
     try {
       const response = await fetch(`${API_URL}/messages/${userId}`);
       const result = await response.json();
-      if (result.success) {
-        // Lọc trùng lặp dựa trên _id để đảm bảo danh sách tin nhắn là duy nhất
-        const uniqueMessages = result.data.filter((msg, index, self) =>
-            index === self.findIndex((t) => (
-                String(t._id || t.id) === String(msg._id || msg.id)
-            ))
-        );
-        setMessages(uniqueMessages);
-      }
+      if (result.success) setMessages(result.data || []);
     } catch (error) {
-      console.error(`Lỗi tải tin nhắn cho user ${userId}:`, error);
+      showToast('Loi tai lich su tin nhan', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSelectUser = (user) => {
-    setSelectedUser(user);
-    setMessages([]);
-    fetchMessages(user.userId);
-    fetch(`${API_URL}/mark-read`, {
+  const fetchUserSummary = async (userId) => {
+    try {
+      const response = await fetch(`${API_URL}/users`);
+      const result = await response.json();
+      if (!result.success) return null;
+      return (result.data || []).find((u) => Number(u.userId) === Number(userId)) || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const putPendingTicket = (ticket) => {
+    if (!ticket || !ticket.userId) return;
+    setPendingTicket((prev) => {
+      if (prev && Number(prev.userId) === Number(ticket.userId)) {
+        return { ...prev, ...ticket };
+      }
+      return ticket;
+    });
+  };
+
+  const handleAcceptTicket = async () => {
+    if (!pendingTicket) return;
+    const me = getCurrentAgent();
+    if (!me.name) return showToast('Khong xac dinh duoc nhan vien hien tai', 'error');
+
+    try {
+      const response = await fetch(`${API_URL}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.userId })
-    });
-    setUsers(users.map(u => u.userId === user.userId ? { ...u, unreadCount: 0 } : u));
+        body: JSON.stringify({ userId: pendingTicket.userId, agentName: me.name })
+      });
+      const result = await response.json();
+      if (!result.success) return showToast(result.message || 'Tiep nhan that bai', 'error');
+
+      setActiveSession({
+        userId: pendingTicket.userId,
+        username: pendingTicket.username || `User ${pendingTicket.userId}`
+      });
+      setPendingTicket(null);
+      setMessages([]);
+      await fetchMessages(pendingTicket.userId);
+      await fetch(`${API_URL}/mark-read`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: pendingTicket.userId })
+      });
+      showToast('Da tiep nhan phien chat', 'success');
+    } catch (error) {
+      showToast('Loi ket noi khi tiep nhan', 'error');
+    }
   };
+
+  const handleRejectTicket = async () => {
+    if (!pendingTicket) return;
+    const me = getCurrentAgent();
+    try {
+      await fetch(`${API_URL}/reject`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: pendingTicket.userId, agentName: me.name || '' })
+      });
+      setPendingTicket(null);
+      showToast('Da huy bo yeu cau', 'info');
+    } catch (error) {
+      showToast('Loi ket noi khi huy bo', 'error');
+    }
+  };
+
+  const handleCloseChatAndClear = async () => {
+    if (!activeSession) return;
+    if (!window.confirm('Dong cuoc tro chuyen va xoa lich su chat?')) return;
+
+    const me = getCurrentAgent();
+    const userId = activeSession.userId;
+    try {
+      await fetch(`${API_URL}/close-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, agentName: me.name || 'CSKH' })
+      });
+      await fetch(`${API_URL}/clear-history/${userId}`, { method: 'DELETE' });
+      setActiveSession(null);
+      setMessages([]);
+      setInputText('');
+      setImagePreview(null);
+      showToast('Da dong chat va xoa lich su', 'success');
+    } catch (error) {
+      showToast('Loi khi dong va xoa lich su chat', 'error');
+    }
+  };
+
+  useEffect(() => {
+    if (!socket.connected) socket.connect();
+    registerPresence();
+
+    socket.on('connect', registerPresence);
+
+    const onNewMessage = (newMessage) => {
+      if (!newMessage || !newMessage.userId) return;
+      const incomingUserId = Number(newMessage.userId);
+
+      if (activeSession && Number(activeSession.userId) === incomingUserId) {
+        setMessages((prev) => [...prev, newMessage]);
+        fetch(`${API_URL}/mark-read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: incomingUserId })
+        });
+      } else {
+        putPendingTicket({
+          userId: incomingUserId,
+          username: newMessage.username || `User ${incomingUserId}`,
+          preview: newMessage.content || '[Hinh anh]'
+        });
+        showToast(`Yeu cau ho tro moi tu ${newMessage.username || incomingUserId}`, 'info');
+      }
+    };
+
+    const onSupportAssigned = async (payload) => {
+      const me = getCurrentAgent();
+      if (!payload || !payload.userId) return;
+      const assignedToMe =
+        (payload.assignedSocketId && payload.assignedSocketId === socket.id) ||
+        (payload.assignedTo && me.name && payload.assignedTo === me.name);
+      if (!assignedToMe) return;
+
+      const summary = await fetchUserSummary(payload.userId);
+      putPendingTicket({
+        userId: Number(payload.userId),
+        username: summary?.username || `User ${payload.userId}`,
+        preview: summary?.lastMessage || 'Yeu cau ho tro moi'
+      });
+    };
+
+    const onSupportClosed = (payload) => {
+      if (!payload || !payload.userId) return;
+      if (activeSession && Number(activeSession.userId) === Number(payload.userId)) {
+        setActiveSession(null);
+        setMessages([]);
+      }
+      if (pendingTicket && Number(pendingTicket.userId) === Number(payload.userId)) {
+        setPendingTicket(null);
+      }
+    };
+
+    const onTyping = ({ userId }) => {
+      setTypingUsers((prev) => new Set(prev).add(userId));
+    };
+
+    const onStopTyping = ({ userId }) => {
+      setTypingUsers((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    };
+
+    socket.on('new_message', onNewMessage);
+    socket.on('support_assigned', onSupportAssigned);
+    socket.on('support_closed', onSupportClosed);
+    socket.on('typing', onTyping);
+    socket.on('stop_typing', onStopTyping);
+
+    return () => {
+      socket.emit('cskh-agent-offline');
+      socket.off('connect', registerPresence);
+      socket.off('new_message', onNewMessage);
+      socket.off('support_assigned', onSupportAssigned);
+      socket.off('support_closed', onSupportClosed);
+      socket.off('typing', onTyping);
+      socket.off('stop_typing', onStopTyping);
+    };
+  }, [activeSession, pendingTicket]);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSend = async (e) => {
     e.preventDefault();
-    if ((!inputText.trim() && !imagePreview) || !selectedUser) return;
+    if ((!inputText.trim() && !imagePreview) || !activeSession) return;
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     isTypingRef.current = false;
-    socket.emit('admin_stop_typing', { userId: selectedUser.userId });
+    socket.emit('admin_stop_typing', { userId: activeSession.userId });
 
     const tempId = Date.now();
     const tempMsg = {
@@ -218,197 +267,110 @@ const ChatInterface = () => {
       imageBase64: imagePreview,
       isTemp: true
     };
-    setMessages(prev => [...prev, tempMsg]);
+    setMessages((prev) => [...prev, tempMsg]);
     setInputText('');
     setImagePreview(null);
-    if(fileInputRef.current) fileInputRef.current.value = "";
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = '44px';
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
 
     try {
       const response = await fetch(`${API_URL}/reply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          userId: selectedUser.userId, 
+        body: JSON.stringify({
+          userId: activeSession.userId,
           text: tempMsg.content,
           imageBase64: tempMsg.imageBase64
         })
       });
-      if (!response.ok) {
-        throw new Error('Lỗi mạng hoặc server');
-      }
+      if (!response.ok) throw new Error('Send failed');
+      setMessages((prev) => prev.filter((m) => !m.isTemp));
     } catch (error) {
-      console.error("Lỗi gửi tin nhắn:", error);
-      setMessages(prev => prev.filter(m => m._id !== tempId));
-      alert('Gửi tin nhắn thất bại. Vui lòng thử lại.');
+      setMessages((prev) => prev.filter((m) => m._id !== tempId));
+      showToast('Gui tin nhan that bai', 'error');
     }
   };
 
   const handleFileSelect = (e) => {
     const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      alert('Vui lòng chọn một file ảnh.');
-    }
+    if (!file || !file.type.startsWith('image/')) return showToast('Vui long chon file anh', 'error');
+    const reader = new FileReader();
+    reader.onloadend = () => setImagePreview(reader.result);
+    reader.readAsDataURL(file);
     e.target.value = null;
   };
 
   const handleInputChange = (e) => {
     const text = e.target.value;
     setInputText(text);
-
-    if (!selectedUser) return;
-
-    if (!isTypingRef.current) {
-        isTypingRef.current = true;
-        socket.emit('admin_typing', { userId: selectedUser.userId });
+    if (textAreaRef.current) {
+      textAreaRef.current.style.height = 'auto';
+      textAreaRef.current.style.height = `${Math.min(textAreaRef.current.scrollHeight, 160)}px`;
     }
-
+    if (!activeSession) return;
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      socket.emit('admin_typing', { userId: activeSession.userId });
+    }
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-
     typingTimeoutRef.current = setTimeout(() => {
-        isTypingRef.current = false;
-        socket.emit('admin_stop_typing', { userId: selectedUser.userId });
+      isTypingRef.current = false;
+      socket.emit('admin_stop_typing', { userId: activeSession.userId });
     }, 2000);
   };
 
-  const handleDeleteMessage = async (msgId) => {
-    if (!msgId) return;
-    if (!window.confirm('Bạn có chắc muốn xóa tin nhắn này?')) return;
-
-    try {
-      const response = await fetch(`${API_URL}/messages/${msgId}`, {
-        method: 'DELETE'
-      });
-
-      if (!response.ok) {
-        showToast(`Lỗi server: ${response.status}`, 'error');
-        return;
-      }
-
-      const result = await response.json();
-      
-      if (result.success) {
-        setMessages(prev => prev.filter(m => (m._id || m.id) !== msgId));
-        showToast('Đã xóa tin nhắn', 'success');
-      } else {
-        showToast('Xóa thất bại: ' + (result.message || 'Lỗi server'), 'error');
-      }
-    } catch (error) {
-      console.error("Lỗi xóa tin nhắn:", error);
-      showToast('Lỗi kết nối', 'error');
-    }
-  };
-
-  const handleUnsendMessage = async (msgId) => {
-    if (!msgId) return;
-    if (!window.confirm('Bạn có chắc muốn thu hồi tin nhắn này?')) return;
-
-    try {
-      const response = await fetch(`${API_URL}/unsend`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messageId: msgId })
-      });
-
-      if (!response.ok) {
-        showToast(`Lỗi server: ${response.status}`, 'error');
-        return;
-      }
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Optimistically remove the message or update it to show "unsent"
-        setMessages(prev => prev.filter(m => (m._id || m.id) !== msgId));
-        showToast('Đã thu hồi tin nhắn', 'success');
-      } else {
-        showToast('Thu hồi thất bại: ' + (result.message || 'Lỗi server'), 'error');
-      }
-    } catch (error) {
-      console.error("Lỗi thu hồi tin nhắn:", error);
-      showToast('Lỗi kết nối', 'error');
-    }
-  };
-
   return (
-    <div className="support-container">
-      <div className="user-list">
-        <div className="user-list-header">
-          <i className="fas fa-users"></i> Khách Hàng
+    <div className="support-container" style={{ gridTemplateColumns: '1fr' }}>
+      {!activeSession ? (
+        <div className="empty-state">
+          <i className="fas fa-headset"></i>
+          <p style={{ fontWeight: 700, marginBottom: 6 }}>Màn hình chờ hỗ trợ</p>
+          <p>Hệ thống sẽ hiển thị yêu cầu hỗ trợ khi có người dùng gửi tới bạn.</p>
         </div>
-        <div style={{ overflowY: 'auto', flex: 1 }}>
-          {users.map(user => (
-            <div 
-              key={user.userId} 
-              className={`user-item ${selectedUser?.userId === user.userId ? 'active' : ''}`}
-              onClick={() => handleSelectUser(user)}
-            >
-              <div className="user-info">
-                <h4>{user.username || `User ${user.userId}`}</h4>
-                <p>
-                  {typingUsers.has(user.userId) ? (
-                    <span style={{ color: '#0ea5e9', fontStyle: 'italic', fontSize: '12px' }}>
-                      <i className="fas fa-pen-nib"></i> Đang nhập...
-                    </span>
-                  ) : user.lastMessage}
-                </p>
-              </div>
-              {user.unreadCount > 0 && (
-                <span className="unread-badge">{user.unreadCount}</span>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {selectedUser ? (
+      ) : (
         <div className="chat-area">
           <div className="chat-header">
             <span>
-              <i className="fas fa-terminal"></i> Đang chat với: <b>{selectedUser.username}</b> (ID: {selectedUser.userId})
+              <i className="fas fa-terminal"></i> Dang chat voi: <b>{activeSession.username}</b> (ID: {activeSession.userId})
             </span>
-            <button onClick={() => fetchMessages(selectedUser.userId)} style={{padding: '5px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #555', color: '#888', cursor: 'pointer'}}>
-              <i className="fas fa-sync"></i> Refresh
+            <button
+              onClick={handleCloseChatAndClear}
+              title="Dong va xoa lich su"
+              style={{
+                border: '1px solid #dc2626',
+                borderRadius: 8,
+                width: 34,
+                height: 30,
+                color: '#dc2626',
+                background: '#fff',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              X
             </button>
           </div>
 
           <div className="chat-messages">
-            {loading ? <p>Đang tải tin nhắn...</p> : messages.map((msg, idx) => (
+            {loading ? <p>Dang tai tin nhan...</p> : messages.map((msg, idx) => (
               <div key={msg._id || msg.id || idx} className={`message-bubble ${msg.direction === 'in' ? 'msg-in' : 'msg-out'}`}>
                 {msg.imageBase64 && (
-                  <img 
-                    src={msg.imageBase64} 
-                    alt="Attachment" 
+                  <img
+                    src={msg.imageBase64}
+                    alt="Attachment"
                     className="message-image"
                     onClick={() => window.open(msg.imageBase64, '_blank')}
                   />
                 )}
                 {msg.content && <div className="message-content">{msg.content}</div>}
-                <span className="msg-time">
-                  {formatRelativeTime(msg.createdAt)}
-                </span>
-                {!msg.isTemp && msg.direction === 'out' && (
-                  <button 
-                    className="delete-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleUnsendMessage(msg._id || msg.id);
-                    }}
-                    title="Thu hồi tin nhắn"
-                  >
-                    <i className="fas fa-trash-alt"></i>
-                  </button>
-                )}
+                <span className="msg-time">{formatRelativeTime(msg.createdAt)}</span>
               </div>
             ))}
-            {selectedUser && typingUsers.has(selectedUser.userId) && (
+            {activeSession && typingUsers.has(activeSession.userId) && (
               <div className="message-bubble msg-in" style={{ fontStyle: 'italic', opacity: 0.7, padding: '8px 12px' }}>
-                <i className="fas fa-ellipsis-h"></i> Đang nhập...
+                <i className="fas fa-ellipsis-h"></i> Dang nhap...
               </div>
             )}
             <div ref={messagesEndRef} />
@@ -416,19 +378,20 @@ const ChatInterface = () => {
 
           <form className="chat-input-area" onSubmit={handleSend}>
             <input type="file" id="image-upload" ref={fileInputRef} style={{ display: 'none' }} accept="image/*" onChange={handleFileSelect} />
-            <button type="button" className="btn-send" onClick={() => fileInputRef.current.click()} style={{padding: '0 15px', alignSelf: 'flex-end'}}>
+            <button type="button" className="btn-send btn-attach" onClick={() => fileInputRef.current?.click()}>
               <i className="fas fa-paperclip"></i>
             </button>
             <div className="chat-input-wrapper">
               {imagePreview && (
                 <div className="image-preview-container">
                   <img src={imagePreview} alt="Preview" />
-                  <button type="button" className="remove-preview-btn" onClick={() => setImagePreview(null)}>×</button>
+                  <button type="button" className="remove-preview-btn" onClick={() => setImagePreview(null)}>x</button>
                 </div>
               )}
-              <textarea 
-                className="chat-input" 
-                placeholder="Nhập tin nhắn..." 
+              <textarea
+                ref={textAreaRef}
+                className="chat-input"
+                placeholder="Nhap tin nhan..."
                 value={inputText}
                 onChange={handleInputChange}
                 onKeyDown={(e) => {
@@ -440,15 +403,77 @@ const ChatInterface = () => {
                 rows="1"
               />
             </div>
-            <button type="submit" className="btn-send">
-              <i className="fas fa-paper-plane"></i> GỬI
+            <button type="submit" className="btn-send btn-submit">
+              <i className="fas fa-paper-plane"></i>
             </button>
           </form>
         </div>
-      ) : (
-        <div className="empty-state">
-          <i className="fas fa-satellite-dish"></i>
-          <p>Chọn một người dùng để bắt đầu cuộc trò chuyện</p>
+      )}
+
+      {pendingTicket && !activeSession && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(2,6,23,0.45)',
+            display: 'grid',
+            placeItems: 'center',
+            zIndex: 10000
+          }}
+        >
+          <div
+            style={{
+              width: 'min(520px, 92vw)',
+              background: '#fff',
+              borderRadius: 14,
+              border: '1px solid #dbe4ef',
+              boxShadow: '0 20px 45px rgba(2,6,23,0.28)',
+              padding: 16
+            }}
+          >
+            <h3 style={{ margin: 0, marginBottom: 8, color: '#0f172a' }}>
+              Yeu cau ho tro moi
+            </h3>
+            <p style={{ margin: '0 0 4px', color: '#334155' }}>
+              <b>Khach hang:</b> {pendingTicket.username || `User ${pendingTicket.userId}`}
+            </p>
+            <p style={{ margin: '0 0 4px', color: '#334155' }}>
+              <b>User ID:</b> {pendingTicket.userId}
+            </p>
+            <p style={{ margin: '0 0 12px', color: '#64748b' }}>
+              {pendingTicket.preview || 'Can ho tro ngay'}
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleRejectTicket}
+                style={{
+                  border: '1px solid #dc2626',
+                  background: '#fff',
+                  color: '#dc2626',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 700
+                }}
+              >
+                Huy bo
+              </button>
+              <button
+                onClick={handleAcceptTicket}
+                style={{
+                  border: '1px solid #0ea5e9',
+                  background: '#0ea5e9',
+                  color: '#fff',
+                  borderRadius: 8,
+                  padding: '8px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 700
+                }}
+              >
+                Tiep nhan
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

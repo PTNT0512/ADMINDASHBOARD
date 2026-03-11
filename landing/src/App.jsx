@@ -5,15 +5,86 @@ const App = () => {
   const [messages, setMessages] = useState([]);
   const [isTyping, setIsTyping] = useState(false);
   const [showToast, setShowToast] = useState(false);
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
   const chatBoxRef = useRef(null);
   const canvasRef = useRef(null);
+
+  // Fetch landing settings from API
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        // Try to get from Electron IPC first
+        if (window.require) {
+          const { ipcRenderer } = window.require('electron');
+          const result = await ipcRenderer.invoke('get-landing-settings');
+          if (result.success && result.data) {
+            setSettings(result.data);
+            setLoading(false);
+            return;
+          }
+        }
+        
+        // Fallback: fetch from HTTP API
+        const response = await fetch('/api/get-landing-settings');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            setSettings(data.data);
+          } else {
+            setSettings(getDefaultSettings());
+          }
+        } else {
+          setSettings(getDefaultSettings());
+        }
+      } catch (error) {
+        console.error('Error fetching landing settings:', error);
+        setSettings(getDefaultSettings());
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchSettings();
+  }, []);
+
+  // Default settings fallback
+  const getDefaultSettings = () => ({
+    logoUrl: 'https://i.imgur.com/vazRsQJ.png',
+    mainTitle: 'OK999.SITE',
+    subtitle: 'Đẳng cấp Casino Quốc Tế',
+    botName: 'MIG30 Support Bot',
+    ctaButtonText: 'TRUY CẬP BOT NGAY',
+    ctaButtonColor: '#229ED9',
+    ctaButtonHoverColor: '#1e8bc0',
+    ctaButtonUrl: 't.me/MIG30VIP_bot',
+    giftCode: 'MIG30VIP',
+    giftButtonText: 'Nhận Code',
+    giftButtonUrl: 'javascript:void(0)',
+    supportButtonText: 'Hỗ Trợ',
+    supportButtonUrl: 't.me/MIG30VIP_bot',
+    botLink: 't.me/MIG30VIP_bot',
+    trustBadges: [
+      { label: 'Nạp Rút', value: '24/7', color: 'text-yellow-500' },
+      { label: 'Tốc độ', value: '1s', color: 'text-green-500' },
+      { label: 'Bảo mật', value: '100%', color: 'text-blue-500' }
+    ],
+    copyrightText: '© 2025 MIG30.VIP Entertainment. All rights reserved.'
+  });
 
   // 1. Particle Background Logic
   useEffect(() => {
     const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+
     const ctx = canvas.getContext('2d');
-    let width, height;
+    if (!ctx) return undefined;
+
+    let width = 0;
+    let height = 0;
     let particles = [];
+    let rafId = 0;
+    let stopped = false;
 
     const resize = () => {
       width = canvas.width = window.innerWidth;
@@ -53,20 +124,25 @@ const App = () => {
     };
 
     const animate = () => {
+      if (stopped) return;
       ctx.clearRect(0, 0, width, height);
       particles.forEach((p) => {
         p.update();
         p.draw();
       });
-      requestAnimationFrame(animate);
+      rafId = requestAnimationFrame(animate);
     };
 
     window.addEventListener('resize', resize);
     init();
     animate();
 
-    return () => window.removeEventListener('resize', resize);
-  }, []);
+    return () => {
+      stopped = true;
+      if (rafId) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', resize);
+    };
+  }, [loading, settings]);
 
   // 2. Chat Simulation Logic
   useEffect(() => {
@@ -111,6 +187,16 @@ const App = () => {
     setTimeout(() => setShowToast(false), 3000);
   };
 
+  // Show loading state
+  if (loading || !settings) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-black text-white">
+        <div className="animate-spin w-12 h-12 border-4 border-blue-500/30 border-t-blue-500 rounded-full"></div>
+        <p className="mt-4 text-gray-400">Loading...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center relative bg-black text-white font-sans overflow-hidden">
       {/* Background */}
@@ -124,26 +210,26 @@ const App = () => {
           <div className="relative p-1 rounded-full bg-gradient-to-tr from-yellow-500 via-transparent to-blue-400 animate-[spin_4s_linear_infinite] shadow-[0_0_30px_rgba(234,179,8,0.2)]">
             <div className="w-32 h-32 rounded-full overflow-hidden bg-black flex items-center justify-center">
               <img 
-                src="https://i.imgur.com/vazRsQJ.png" 
-                alt="MIG30 Logo" 
+                src={settings.logoUrl} 
+                alt="Logo" 
                 className="w-full h-full object-cover hover:scale-110 transition duration-500"
               />
             </div>
           </div>
           <h1 className="mt-4 text-4xl font-extrabold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-yellow-600 via-yellow-200 to-yellow-600 drop-shadow-md font-['Orbitron',sans-serif]">
-            MIG30.VIP
+            {settings.mainTitle}
           </h1>
-          <p className="text-gray-400 text-xs tracking-[0.3em] uppercase mt-1">Đẳng cấp Casino Quốc Tế</p>
+          <p className="text-gray-400 text-xs tracking-[0.3em] uppercase mt-1">{settings.subtitle}</p>
         </div>
 
         {/* Telegram Chat Simulation */}
         <div className="bg-slate-900/70 backdrop-blur-md rounded-2xl p-4 w-full h-80 flex flex-col shadow-2xl border border-yellow-500/10 relative overflow-hidden">
           <div className="flex items-center gap-3 border-b border-gray-700 pb-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-[#229ED9] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center" style={{backgroundColor: settings.ctaButtonColor}}>
               <Send size={20} className="text-white fill-white" />
             </div>
             <div>
-              <h3 className="font-bold text-sm">MIG30 Support Bot</h3>
+              <h3 className="font-bold text-sm">{settings.botName}</h3>
               <p className="text-blue-400 text-xs">bot</p>
             </div>
             <div className="ml-auto text-green-400 text-xs flex items-center gap-1">
@@ -172,44 +258,59 @@ const App = () => {
 
         {/* Buttons */}
         <div className="flex flex-col gap-3">
-          <button className="relative overflow-hidden bg-[#229ED9] hover:bg-[#1e8bc0] py-4 rounded-xl flex items-center justify-center gap-3 font-bold text-lg shadow-lg shadow-blue-500/20 transition-all active:scale-95 group">
+          <a 
+            href={`https://${settings.ctaButtonUrl}`.replace('https://https://', 'https://')}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative overflow-hidden py-4 rounded-xl flex items-center justify-center gap-3 font-bold text-lg shadow-lg transition-all active:scale-95 group"
+            style={{
+              backgroundColor: settings.ctaButtonColor,
+              boxShadow: `0 0 20px ${settings.ctaButtonColor}33`
+            }}
+            onMouseEnter={(e) => e.target.style.backgroundColor = settings.ctaButtonHoverColor}
+            onMouseLeave={(e) => e.target.style.backgroundColor = settings.ctaButtonColor}
+          >
             <Send size={24} className="group-hover:rotate-12 transition-transform" />
-            <span>TRUY CẬP BOT NGAY</span>
+            <span>{settings.ctaButtonText}</span>
             <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700" />
-          </button>
+          </a>
 
           <div className="grid grid-cols-2 gap-3">
-            <button 
-              onClick={() => copyCode('MIG30VIP')}
-              className="bg-slate-900/50 hover:bg-slate-800/50 py-3 rounded-xl border border-yellow-500/30 text-yellow-400 font-semibold flex items-center justify-center gap-2 transition"
+            <a 
+              href={`https://${settings.giftButtonUrl}`.replace('https://javascript:', 'javascript:')}
+              target={settings.giftButtonUrl.startsWith('javascript:') ? '_self' : '_blank'}
+              rel={settings.giftButtonUrl.startsWith('javascript:') ? '' : 'noopener noreferrer'}
+              onClick={settings.giftButtonUrl === 'javascript:void(0)' ? () => copyCode(settings.giftCode) : null}
+              className="bg-slate-900/50 hover:bg-slate-800/50 py-3 rounded-xl border border-yellow-500/30 text-yellow-400 font-semibold flex items-center justify-center gap-2 transition cursor-pointer"
             >
-              <Gift size={18} /> Nhận Code
-            </button>
-            <button className="bg-slate-900/50 hover:bg-slate-800/50 py-3 rounded-xl border border-gray-600 text-gray-300 font-semibold flex items-center justify-center gap-2 transition">
-              <Headset size={18} /> Hỗ Trợ
-            </button>
+              <Gift size={18} /> {settings.giftButtonText}
+            </a>
+            <a 
+              href={`https://${settings.supportButtonUrl}`.replace('https://https://', 'https://')}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-slate-900/50 hover:bg-slate-800/50 py-3 rounded-xl border border-gray-600 text-gray-300 font-semibold flex items-center justify-center gap-2 transition"
+            >
+              <Headset size={18} /> {settings.supportButtonText}
+            </a>
           </div>
         </div>
 
         {/* Trust Badges */}
         <div className="flex justify-between items-center px-4 py-3 bg-slate-900/70 backdrop-blur-sm rounded-xl border border-white/5">
-          {[
-            { label: 'Nạp Rút', val: '24/7', color: 'text-yellow-500' },
-            { label: 'Tốc độ', val: '1s', color: 'text-green-500' },
-            { label: 'Bảo mật', val: '100%', color: 'text-blue-500' }
-          ].map((item, i) => (
+          {settings.trustBadges && settings.trustBadges.map((item, i) => (
             <React.Fragment key={i}>
               <div className="text-center">
-                <div className={`${item.color} font-bold text-lg`}>{item.val}</div>
+                <div className={`${item.color} font-bold text-lg`}>{item.value}</div>
                 <div className="text-[10px] text-gray-500 uppercase">{item.label}</div>
               </div>
-              {i < 2 && <div className="w-px h-8 bg-gray-800" />}
+              {i < settings.trustBadges.length - 1 && <div className="w-px h-8 bg-gray-800" />}
             </React.Fragment>
           ))}
         </div>
 
         <p className="text-center text-gray-600 text-[10px] mt-2">
-          &copy; 2025 MIG30.VIP Entertainment. All rights reserved.
+          {settings.copyrightText}
         </p>
       </main>
 

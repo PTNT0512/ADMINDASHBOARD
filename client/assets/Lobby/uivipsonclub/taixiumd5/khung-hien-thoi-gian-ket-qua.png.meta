@@ -1,0 +1,36 @@
+{
+  "ver": "2.3.5",
+  "uuid": "42c13c56-05b7-4564-b1cc-1c3e68b5a820",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "genMipmaps": false,
+  "packable": true,
+  "width": 106,
+  "height": 40,
+  "platformSettings": {},
+  "subMetas": {
+    "khung-hien-thoi-gian-ket-qua": {
+      "ver": "1.0.4",
+      "uuid": "239b2267-c9a9-4f1e-b7c8-ff6f306eb270",
+      "rawTextureUuid": "42c13c56-05b7-4564-b1cc-1c3e68b5a820",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 106,
+      "height": 40,
+      "rawWidth": 106,
+      "rawHeight": 40,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

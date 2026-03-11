@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Trophy, Coins, RotateCcw, History, Play, Trash2, Info } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, pickByWinRate } from './winRateControl';
 
 const ROULETTE_NUMBERS = [
   0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
@@ -15,6 +17,12 @@ const BOARD_LAYOUT = [
 
 const App = () => {
   const [balance, setBalance] = useState(5000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [bets, setBets] = useState({});
   const [spinning, setSpinning] = useState(false);
   const [wheelRotation, setWheelRotation] = useState(0);
@@ -22,7 +30,7 @@ const App = () => {
   const [ballStage, setBallStage] = useState('idle'); // idle, entry, spinning, dropping, hitting, settled
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
-  const [message, setMessage] = useState("Chào Duog! Hãy đặt cược và thả bóng.");
+  const [message, setMessage] = useState("Ch?o Duog! H?y d?t cu?c v? th? b?ng.");
   const [selectedChip, setSelectedChip] = useState(10);
 
   const chips = [10, 50, 100, 500, 1000];
@@ -35,7 +43,7 @@ const App = () => {
   const placeBet = (type) => {
     if (spinning) return;
     if (balance < selectedChip) {
-      setMessage("Duog ơi, không đủ tiền cược rồi!");
+      setMessage("Duog oi, kh?ng d? ti?n cu?c r?i!");
       return;
     }
     setBets(prev => ({ ...prev, [type]: (prev[type] || 0) + selectedChip }));
@@ -54,30 +62,53 @@ const App = () => {
 
     setSpinning(true);
     setResult(null);
-    setBallStage('entry'); // Giai đoạn bóng từ ngoài vào
-    setMessage("Bàn quay đang khởi động...");
+    setBallStage('entry'); // Giai do?n b?ng t? ngo?i v?o
+    setMessage("B?n quay dang kh?i d?ng...");
 
-    const winIdx = Math.floor(Math.random() * 37);
-    const winNumber = ROULETTE_NUMBERS[winIdx];
+    const evaluateWinForNumber = (num) => {
+      let totalWin = 0;
+      const winColor = num === 0 ? 'green' : (RED_NUMBERS.includes(num) ? 'red' : 'black');
+      Object.entries(bets).forEach(([type, amount]) => {
+        if (parseInt(type, 10) === num) totalWin += amount * 36;
+        if (type === 'red' && winColor === 'red') totalWin += amount * 2;
+        if (type === 'black' && winColor === 'black') totalWin += amount * 2;
+        if (type === 'even' && num !== 0 && num % 2 === 0) totalWin += amount * 2;
+        if (type === 'odd' && num !== 0 && num % 2 !== 0) totalWin += amount * 2;
+        if (type === '1st12' && num >= 1 && num <= 12) totalWin += amount * 3;
+        if (type === '2nd12' && num >= 13 && num <= 24) totalWin += amount * 3;
+        if (type === '3rd12' && num >= 25 && num <= 36) totalWin += amount * 3;
+      });
+      return totalWin;
+    };
+
+    const winCandidates = [];
+    const loseCandidates = [];
+    ROULETTE_NUMBERS.forEach((n) => {
+      if (evaluateWinForNumber(n) > 0) winCandidates.push(n);
+      else loseCandidates.push(n);
+    });
+
+    const winNumber = pickByWinRate('roulette', winCandidates, loseCandidates) ?? ROULETTE_NUMBERS[Math.floor(Math.random() * 37)];
+    const winIdx = ROULETTE_NUMBERS.indexOf(winNumber);
     const anglePerNumber = 360 / 37;
     
-    // Vòng xoay bàn quay
+    // V?ng xoay b?n quay
     const extraWheelSpins = 4 + Math.random() * 2;
     const newWheelRotation = wheelRotation + (extraWheelSpins * 360) + (winIdx * anglePerNumber);
     
-    // Vòng xoay bóng (ngược chiều)
+    // V?ng xoay b?ng (ngu?c chi?u)
     const centerOfPocketOffset = anglePerNumber / 2;
     const extraBallSpins = 12 + Math.random() * 3;
     const newBallRotation = ballRotation - (extraBallSpins * 360) + (winIdx * anglePerNumber) + centerOfPocketOffset;
 
-    // Bắt đầu xoay bàn quay trước
+    // B?t d?u xoay b?n quay tru?c
     setWheelRotation(newWheelRotation);
     
-    // Sau 500ms dealer mới thả bi vào
+    // Sau 500ms dealer m?i th? bi v?o
     setTimeout(() => {
       setBallStage('spinning');
       setBallRotation(newBallRotation);
-      setMessage("Bóng đã được thả vào rãnh!");
+      setMessage("B?ng d? du?c th? v?o r?nh!");
     }, 500);
 
     // Timeline logic
@@ -110,9 +141,9 @@ const App = () => {
 
     if (totalWin > 0) {
       setBalance(prev => prev + totalWin);
-      setMessage(`Ô ${winNum}. THẮNG! Duog nhận được $${totalWin.toLocaleString()}`);
+      setMessage(`? ${winNum}. TH?NG! Duog nh?n du?c $${totalWin.toLocaleString()}`);
     } else {
-      setMessage(`Ô ${winNum}. Rất tiếc cho Duog!`);
+      setMessage(`? ${winNum}. R?t ti?c cho Duog!`);
     }
     setBets({});
   };
@@ -123,19 +154,19 @@ const App = () => {
       <div className="max-w-6xl mx-auto flex justify-between items-center mb-6 bg-black/60 p-4 rounded-2xl border border-emerald-500/20 backdrop-blur-xl shadow-2xl">
         <div className="flex items-center gap-6">
           <div className="flex flex-col">
-            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Tiền mặt</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Ti?n m?t</span>
             <span className="text-2xl font-black text-yellow-500 flex items-center gap-2">
               <Coins className="text-yellow-400" /> ${balance.toLocaleString()}
             </span>
           </div>
           <div className="h-10 w-px bg-white/10"></div>
           <div className="hidden lg:block">
-            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Trạng thái</span>
+            <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest">Tr?ng th?i</span>
             <p className="text-sm font-semibold text-emerald-50 italic">{message}</p>
           </div>
         </div>
         <div className="flex flex-col items-end">
-          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">Gần đây</span>
+          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest mb-1">G?n d?y</span>
           <div className="flex gap-1">
             {history.map((h, i) => (
               <div key={i} className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black border border-white/10 ${getNumberColor(h)} shadow-lg`}>
@@ -149,10 +180,10 @@ const App = () => {
       <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-5 gap-10 items-start">
         <div className="xl:col-span-2 flex flex-col items-center">
           <div className="relative w-80 h-80 md:w-[460px] md:h-[460px]">
-             {/* Gờ ngoài bằng gỗ */}
+             {/* G? ngo?i b?ng g? */}
              <div className="absolute inset-[-25px] rounded-full border-[22px] border-[#2d1b0e] shadow-[inset_0_0_60px_rgba(0,0,0,1),0_20px_40px_rgba(0,0,0,0.8)] bg-[#3a2617] z-0"></div>
              
-             {/* Rãnh bóng chạy (Track) */}
+             {/* R?nh b?ng ch?y (Track) */}
              <div className="absolute inset-0 rounded-full bg-gradient-to-b from-[#0a0a0a] to-[#1a1a1a] z-10 shadow-[inset_0_0_40px_rgba(0,0,0,1)] border-[10px] border-neutral-900/50"></div>
              
              {/* Wheel Content */}
@@ -234,10 +265,10 @@ const App = () => {
                   style={{ 
                     width: '14px', 
                     height: '14px',
-                    top: ballStage === 'entry' ? '-15%' : // Bóng bắt đầu từ ngoài bàn quay
-                         ballStage === 'spinning' ? '1%' : // Vào rãnh chạy ngoài
-                         ballStage === 'dropping' ? '18%' : // Bắt đầu rơi vào trong
-                         ballStage === 'hitting' ? '24%' : '29.5%', // Dừng lại ở hốc số
+                    top: ballStage === 'entry' ? '-15%' : // B?ng b?t d?u t? ngo?i b?n quay
+                         ballStage === 'spinning' ? '1%' : // V?o r?nh ch?y ngo?i
+                         ballStage === 'dropping' ? '18%' : // B?t d?u roi v?o trong
+                         ballStage === 'hitting' ? '24%' : '29.5%', // D?ng l?i ? h?c s?
                     animation: ballStage === 'hitting' ? 'ball-bounce-pocket 0.6s ease-in-out' : 'none'
                   }}
                 ></div>
@@ -264,13 +295,13 @@ const App = () => {
                 : 'bg-gradient-to-b from-yellow-400 to-yellow-600 text-neutral-900 border-yellow-800 hover:brightness-110 hover:-translate-y-1'
               }`}
             >
-              {spinning ? 'BÓNG ĐANG LĂN...' : 'THẢ BÓNG NGAY'}
+              {spinning ? 'B?NG ?ANG LAN...' : 'TH? B?NG NGAY'}
             </button>
             <button 
               onClick={clearBets} 
               className="py-3 bg-red-900/10 hover:bg-red-900/30 rounded-xl text-[10px] font-black border border-red-500/20 text-red-500/60 uppercase tracking-widest transition-all"
             >
-              Xóa cược
+              X?a cu?c
             </button>
           </div>
         </div>

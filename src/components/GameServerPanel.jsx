@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import ioClient from 'socket.io-client';
 import { useIpc } from './ToastContext';
+import { getDashboardSocketBaseUrl } from '../utils/runtime-endpoints';
 
 export default function GameServerPanel() {
   const [running, setRunning] = useState(false);
@@ -16,7 +17,7 @@ export default function GameServerPanel() {
     }).catch(()=>{});
 
     // Connect to socket.io on same origin
-    const s = ioClient('http://localhost:4001');
+    const s = ioClient(getDashboardSocketBaseUrl());
     setSocket(s);
     s.on('connect', () => {});
     s.on('game-server-log', (data) => {
@@ -53,3 +54,4 @@ export default function GameServerPanel() {
     </div>
   );
 }
+

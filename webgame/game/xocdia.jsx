@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RefreshCcw, Wallet, History, Trash2, Zap } from 'lucide-react';
+import { io } from 'socket.io-client';
+import { bootstrapGameAuth } from './authBootstrap';
 
 const PAYOUTS = {
   CHAN: 1, LE: 1, FOUR_RED: 12, FOUR_WHITE: 12, THREE_RED: 2.6, THREE_WHITE: 2.6
@@ -30,7 +32,14 @@ const MiniCoins = ({ reds, whites }) => {
 };
 
 export default function App() {
-  const [balance, setBalance] = useState(10000000); 
+  const [balance, setBalance] = useState(10000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+  }, []); 
+  const [roundId, setRoundId] = useState(1);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [coins, setCoins] = useState([
     { isRed: true, x: 0, y: 0, rotate: 0 },
     { isRed: true, x: 0, y: 0, rotate: 45 },
@@ -42,7 +51,7 @@ export default function App() {
   const [bets, setBets] = useState({ CHAN: 0, LE: 0, FOUR_RED: 0, FOUR_WHITE: 0, THREE_RED: 0, THREE_WHITE: 0 });
   const [selectedChip, setSelectedChip] = useState(10);
   const [history, setHistory] = useState([]);
-  const [message, setMessage] = useState("CHÀO MỪNG ĐẾN VỚI CASINO");
+  const [message, setMessage] = useState("CH?O M?NG ??N V?I CASINO");
   const [gameStatus, setGameStatus] = useState("BETTING"); 
   const [timer, setTimer] = useState(30);
   const [lastWin, setLastWin] = useState(0);
@@ -50,6 +59,13 @@ export default function App() {
 
   const audioCtx = useRef(null);
   const timerRef = useRef(null);
+  const betsRef = useRef(bets);
+  const handledResultSessionRef = useRef(0);
+  const handledBettingSessionRef = useRef(0);
+
+  useEffect(() => {
+    betsRef.current = bets;
+  }, [bets]);
 
   const initAudio = () => { if (!audioCtx.current) audioCtx.current = new (window.AudioContext || window.webkitAudioContext)(); };
   
@@ -75,8 +91,83 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!isDemoMode) return undefined;
     startNewSession();
     return () => clearInterval(timerRef.current);
+  }, [isDemoMode]);
+
+  useEffect(() => {
+    const socket = io('http://localhost:4001', { transports: ['websocket'] });
+
+    socket.on('connect', () => {
+      setIsDemoMode(false);
+    });
+
+    socket.on('connect_error', () => {
+      setIsDemoMode(true);
+    });
+
+    socket.on('xocdia_update', (data = {}) => {
+      const sessionId = Number(data.sessionId || 0);
+      if (sessionId > 0) setRoundId(sessionId);
+
+      if (data.phase === 'BETTING') {
+        if (handledBettingSessionRef.current === sessionId && sessionId > 0) return;
+        handledBettingSessionRef.current = sessionId;
+
+        setGameStatus('BETTING');
+        setTimer(Number(data.timeLeft || 20));
+        setIsBowlOpen(false);
+        setWinningFields([]);
+        setLastWin(0);
+        setMessage('MOI DAT CUOC');
+        setBets({ CHAN: 0, LE: 0, FOUR_RED: 0, FOUR_WHITE: 0, THREE_RED: 0, THREE_WHITE: 0 });
+        return;
+      }
+
+      if (data.phase === 'RESULT') {
+        if (handledResultSessionRef.current === sessionId && sessionId > 0) return;
+        handledResultSessionRef.current = sessionId;
+
+        setGameStatus('RESULT');
+        setIsShaking(false);
+        setIsBowlOpen(true);
+
+        const isChan = String(data.result || '').toUpperCase() === 'CHAN';
+        const redCount = isChan
+          ? (Math.random() < 0.5 ? 2 : (Math.random() < 0.5 ? 0 : 4))
+          : (Math.random() < 0.5 ? 1 : 3);
+
+        const results = Array(4).fill(false).map(((_, i) => i < redCount)).sort(() => Math.random() - 0.5);
+        const zones = [{x:-45,y:-45}, {x:45,y:-45}, {x:-45,y:45}, {x:45,y:45}].sort(() => Math.random() - 0.5);
+        setCoins(results.map((isRed, i) => ({
+          isRed,
+          x: zones[i].x + (Math.random()*25-12.5),
+          y: zones[i].y + (Math.random()*25-12.5),
+          rotate: Math.random() * 360
+        })));
+
+        let wins = [isChan ? 'CHAN' : 'LE'];
+        if (redCount === 4) wins.push('FOUR_RED');
+        if (redCount === 0) wins.push('FOUR_WHITE');
+        if (redCount === 3) wins.push('THREE_RED');
+        if (redCount === 1) wins.push('THREE_WHITE');
+        setWinningFields(wins);
+
+        let totalWin = 0;
+        wins.forEach((f) => { if (betsRef.current[f] > 0) totalWin += betsRef.current[f] * (1 + PAYOUTS[f]); });
+        if (totalWin > 0) {
+          setBalance((b) => b + totalWin);
+          setLastWin(totalWin);
+          setMessage(`THANG ${formatCurrency(totalWin)}!`);
+        } else {
+          setMessage(isChan ? 'KET QUA: CHAN' : 'KET QUA: LE');
+        }
+        setHistory((prev) => [...prev, isChan ? 'C' : 'L'].slice(-60));
+      }
+    });
+
+    return () => socket.disconnect();
   }, []);
 
   const startNewSession = () => {
@@ -85,7 +176,7 @@ export default function App() {
     setIsBowlOpen(false);
     setWinningFields([]);
     setLastWin(0);
-    setMessage("MỜI ĐẶT CƯỢC");
+    setMessage("M?I ??T CU?C");
     
     if (timerRef.current) clearInterval(timerRef.current);
     timerRef.current = setInterval(() => {
@@ -103,7 +194,7 @@ export default function App() {
   const handleAutoShake = () => {
     setGameStatus("SHAKING");
     setIsShaking(true);
-    setMessage("ĐANG XÓC ĐĨA...");
+    setMessage("?ANG X?C ?IA...");
     const shakeInterval = setInterval(() => playSfx(100 + Math.random() * 50, 'square', 0.05, 0.05), 100);
 
     setTimeout(() => {
@@ -147,10 +238,10 @@ export default function App() {
     if (totalWin > 0) {
         setBalance(b => b + totalWin);
         setLastWin(totalWin);
-        setMessage(`CHÚC MỪNG THẮNG ${formatCurrency(totalWin)}!`);
+        setMessage(`CH?C M?NG TH?NG ${formatCurrency(totalWin)}!`);
         playSfx(1000, 'sine', 0.5, 0.1);
     } else {
-        setMessage(isChan ? "KẾT QUẢ: CHẴN" : "KẾT QUẢ: LẺ");
+        setMessage(isChan ? "K?T QU?: CH?N" : "K?T QU?: L?");
     }
     setHistory(prev => [...prev, isChan ? 'C' : 'L'].slice(-60));
     setTimeout(() => {
@@ -208,7 +299,7 @@ export default function App() {
             <div className="flex justify-between items-center mb-1 px-1">
                 <div className="flex items-center gap-2">
                     <History size={10} className="text-yellow-500" />
-                    <span className="text-[8px] font-orbitron font-black text-slate-400 tracking-wider uppercase">Lịch sử</span>
+                    <span className="text-[8px] font-orbitron font-black text-slate-400 tracking-wider uppercase">L?ch s?</span>
                 </div>
                 <div className="flex gap-2">
                     <div className="flex items-center gap-1">
@@ -282,7 +373,7 @@ export default function App() {
             box-shadow: 0 5px 15px rgba(0,0,0,0.4);
         }
 
-        /* NÂNG CẤP CÁI BÁT - BOWL REFINED */
+        /* N?NG C?P C?I B?T - BOWL REFINED */
         .bowl-gradient {
             background: radial-gradient(circle at 35% 35%, #475569 0%, #1e293b 40%, #0f172a 70%, #020617 100%);
             box-shadow: 
@@ -292,7 +383,7 @@ export default function App() {
             border: 1px solid rgba(255,255,255,0.05);
         }
         
-        /* NÂNG CẤP QUÂN VỊ - COIN REFINED */
+        /* N?NG C?P QU?N V? - COIN REFINED */
         .coin-3d-red {
             background: radial-gradient(circle at 30% 30%, #ff5f5f 0%, #b91c1c 60%, #7f1d1d 100%);
             box-shadow: inset 0 2px 4px rgba(255,255,255,0.3), 0 6px 12px rgba(0,0,0,0.6);
@@ -355,13 +446,13 @@ export default function App() {
         <div className="flex flex-col items-end gap-2 w-28 md:w-24">
             <div className="bg-slate-900/90 border border-white/10 px-4 py-2 rounded-xl flex items-center shadow-2xl backdrop-blur-md w-full justify-between">
                     <div className="flex flex-col">
-                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-1">Số dư</span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase leading-none mb-1">S? du</span>
                         <span className="font-orbitron text-base font-black text-white tracking-tighter leading-none">{formatCurrency(balance)}</span>
                     </div>
                 
             </div>
             <div className="text-right px-1">
-                <p className="text-[10px] font-orbitron font-bold text-slate-500 tracking-widest uppercase">ID: 1234</p>
+                <p className="text-[10px] font-orbitron font-bold text-slate-500 tracking-widest uppercase">ID: {roundId}</p>
             </div>
         </div>
       </header>
@@ -427,7 +518,7 @@ export default function App() {
                             ${type === 'CHAN' ? 'border-red-500/30' : 'border-slate-400/20'}
                             ${winningFields.includes(type) ? 'win-glow' : ''}`}>
                             <span className={`font-montserrat text-2xl font-black tracking-tighter ${type === 'CHAN' ? 'text-red-500' : 'text-white'}`}>
-                                {type === 'CHAN' ? 'CHẴN' : 'LẺ'}
+                                {type === 'CHAN' ? 'CH?N' : 'L?'}
                             </span>
                             <span className="text-[8px] font-orbitron font-bold text-slate-500 mt-1 uppercase tracking-widest">x2.0</span>
                             {bets[type] > 0 && (
@@ -470,10 +561,10 @@ export default function App() {
 
   <div className="flex gap-4">
     <button onClick={resetBets} className="control-btn">
-      <Trash2 size={12} /> Hủy cược
+      <Trash2 size={12} /> H?y cu?c
     </button>
     <button onClick={doubleBets} className="control-btn">
-      <Zap size={12} /> X2 Cược
+      <Zap size={12} /> X2 Cu?c
     </button>
   </div>
 
@@ -514,3 +605,4 @@ export default function App() {
     </div>
   );
 }
+

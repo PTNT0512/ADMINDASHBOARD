@@ -1,0 +1,97 @@
+
+casino.png
+size: 2048,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 1536, 206
+  size: 33, 48
+  orig: 33, 48
+  offset: 0, 0
+  index: -1
+2
+  rotate: false
+  xy: 769, 27
+  size: 233, 227
+  orig: 233, 227
+  offset: 0, 0
+  index: -1
+3
+  rotate: false
+  xy: 1004, 63
+  size: 138, 191
+  orig: 138, 191
+  offset: 0, 0
+  index: -1
+4
+  rotate: true
+  xy: 1144, 85
+  size: 91, 125
+  orig: 91, 125
+  offset: 0, 0
+  index: -1
+5
+  rotate: false
+  xy: 409, 22
+  size: 59, 51
+  orig: 59, 51
+  offset: 0, 0
+  index: -1
+Live
+  rotate: false
+  xy: 1271, 153
+  size: 42, 23
+  orig: 42, 23
+  offset: 0, 0
+  index: -1
+bg
+  rotate: true
+  xy: 2, 4
+  size: 250, 405
+  orig: 250, 405
+  offset: 0, 0
+  index: -1
+bg1
+  rotate: false
+  xy: 1004, 2
+  size: 166, 59
+  orig: 166, 59
+  offset: 0, 0
+  index: -1
+cha
+  rotate: true
+  xy: 409, 75
+  size: 179, 358
+  orig: 179, 358
+  offset: 0, 0
+  index: -1
+csn
+  rotate: false
+  xy: 1144, 178
+  size: 245, 76
+  orig: 245, 76
+  offset: 0, 0
+  index: -1
+play
+  rotate: false
+  xy: 470, 44
+  size: 29, 29
+  orig: 29, 29
+  offset: 0, 0
+  index: -1
+tai
+  rotate: true
+  xy: 1144, 72
+  size: 11, 30
+  orig: 11, 30
+  offset: 0, 0
+  index: -1
+tay
+  rotate: true
+  xy: 1391, 125
+  size: 129, 143
+  orig: 129, 143
+  offset: 0, 0
+  index: -1

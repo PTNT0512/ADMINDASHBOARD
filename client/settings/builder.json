@@ -1,0 +1,62 @@
+{
+  "title": "ok",
+  "packageName": "",
+  "startScene": "2f7db1c2-40cd-4aa4-b3af-db121a14c8a6",
+  "excludeScenes": [
+    "b17b5d66-a2d7-452d-9b3f-3c04336a8d74",
+    "8ea5a17a-8bd0-42d4-b496-68a3813fa4b7",
+    "ad5c8b06-2f9f-4aa7-af8b-d824c98cf487",
+    "2d26860e-dfe2-44b8-a5fc-eda116a8a40e"
+  ],
+  "includeSDKBox": false,
+  "orientation": {
+    "landscapeLeft": false,
+    "landscapeRight": false,
+    "portrait": true,
+    "upsideDown": false
+  },
+  "webOrientation": "portrait",
+  "inlineSpriteFrames": true,
+  "inlineSpriteFrames_native": true,
+  "mergeStartScene": false,
+  "optimizeHotUpdate": false,
+  "md5Cache": true,
+  "encryptJs": false,
+  "xxteaKey": "fcc32879-9b4a-48",
+  "zipCompressJs": false,
+  "fb-instant-games": {},
+  "android": {
+    "REMOTE_SERVER_ROOT": "",
+    "packageName": "com.live.go88s"
+  },
+  "ios": {
+    "REMOTE_SERVER_ROOT": "",
+    "ios_enable_jit": true,
+    "packageName": "com.game.lot79"
+  },
+  "mac": {
+    "REMOTE_SERVER_ROOT": "",
+    "height": 1280,
+    "packageName": "",
+    "width": 720
+  },
+  "win32": {
+    "REMOTE_SERVER_ROOT": "",
+    "height": 1280,
+    "width": 720
+  },
+  "android-instant": {
+    "REMOTE_SERVER_ROOT": "",
+    "host": "",
+    "packageName": "",
+    "pathPattern": "",
+    "recordPath": "",
+    "scheme": "https",
+    "skipRecord": false
+  },
+  "appBundle": false,
+  "mainCompressionType": "default",
+  "mainIsRemote": true,
+  "nativeMd5Cache": false,
+  "agreements": {}
+}

@@ -1,0 +1,20 @@
+
+rongthan.png
+size: 603,601
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Group 1
+  rotate: true
+  xy: 505, 196
+  size: 403, 96
+  orig: 405, 99
+  offset: 1, 1
+  index: -1
+Layer 2
+  rotate: false
+  xy: 2, 46
+  size: 501, 553
+  orig: 504, 556
+  offset: 2, 1
+  index: -1

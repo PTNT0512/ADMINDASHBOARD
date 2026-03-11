@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Wallet, ShieldCheck, Clock, ArrowRightCircle, XCircle, Trophy, Sparkles } from 'lucide-react';
 import { io } from "socket.io-client";
+import { bootstrapGameAuth } from './authBootstrap';
 
 const AviatorGame = () => {
   // --- States Hệ thống ---
@@ -50,23 +51,10 @@ const AviatorGame = () => {
 
   // --- XỬ LÝ ĐĂNG NHẬP TỰ ĐỘNG ---
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const token = params.get('token');
-    if (token) {
-      fetch('http://localhost:4001/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data.success) {
-          setCurrentUser(data.user);
-          setBalance(data.user.balance);
-        }
-      })
-      .catch(err => console.error("Lỗi đăng nhập:", err));
-    }
+    bootstrapGameAuth({
+      onUser: setCurrentUser,
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
   }, []);
 
   // --- KẾT NỐI SOCKET (REAL-TIME) ---

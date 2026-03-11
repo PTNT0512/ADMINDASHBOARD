@@ -1,0 +1,48 @@
+
+santrung.png
+size: 1024,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 217, 65
+  size: 191, 155
+  orig: 191, 155
+  offset: 0, 0
+  index: -1
+2
+  rotate: true
+  xy: 777, 136
+  size: 84, 96
+  orig: 84, 96
+  offset: 0, 0
+  index: -1
+3
+  rotate: false
+  xy: 875, 136
+  size: 78, 84
+  orig: 78, 84
+  offset: 0, 0
+  index: -1
+4
+  rotate: true
+  xy: 410, 82
+  size: 138, 161
+  orig: 138, 161
+  offset: 0, 0
+  index: -1
+5
+  rotate: false
+  xy: 573, 139
+  size: 202, 81
+  orig: 202, 81
+  offset: 0, 0
+  index: -1
+bg
+  rotate: false
+  xy: 2, 2
+  size: 213, 218
+  orig: 213, 218
+  offset: 0, 0
+  index: -1

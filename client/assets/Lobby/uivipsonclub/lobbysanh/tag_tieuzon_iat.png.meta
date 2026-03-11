@@ -1,0 +1,36 @@
+{
+  "ver": "2.3.5",
+  "uuid": "39ae0a5b-9784-4c6c-b164-09aca395f6cd",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "genMipmaps": false,
+  "packable": true,
+  "width": 190,
+  "height": 59,
+  "platformSettings": {},
+  "subMetas": {
+    "tag_tieuzon_iat": {
+      "ver": "1.0.4",
+      "uuid": "dcb2c8a5-997e-4ee7-8903-79be111afee6",
+      "rawTextureUuid": "39ae0a5b-9784-4c6c-b164-09aca395f6cd",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 190,
+      "height": 59,
+      "rawWidth": 190,
+      "rawHeight": 59,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

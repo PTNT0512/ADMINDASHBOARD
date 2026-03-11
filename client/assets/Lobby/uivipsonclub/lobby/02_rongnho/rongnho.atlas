@@ -1,0 +1,20 @@
+
+rongnho.png
+size: 705,705
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+Layer 1
+  rotate: false
+  xy: 2, 2
+  size: 481, 701
+  orig: 483, 703
+  offset: 1, 1
+  index: -1
+Layer 7
+  rotate: true
+  xy: 485, 328
+  size: 375, 103
+  orig: 377, 105
+  offset: 1, 1
+  index: -1

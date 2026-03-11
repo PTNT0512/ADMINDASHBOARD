@@ -1,0 +1,62 @@
+
+tlmn.png
+size: 1024,256
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+1
+  rotate: false
+  xy: 789, 118
+  size: 111, 131
+  orig: 111, 131
+  offset: 0, 0
+  index: -1
+14
+  rotate: false
+  xy: 654, 111
+  size: 133, 138
+  orig: 133, 138
+  offset: 0, 0
+  index: -1
+27
+  rotate: false
+  xy: 902, 123
+  size: 113, 126
+  orig: 113, 126
+  offset: 0, 0
+  index: -1
+40
+  rotate: true
+  xy: 502, 2
+  size: 98, 126
+  orig: 98, 126
+  offset: 0, 0
+  index: -1
+A1
+  rotate: false
+  xy: 502, 102
+  size: 150, 147
+  orig: 150, 147
+  offset: 0, 0
+  index: -1
+bg11
+  rotate: true
+  xy: 284, 38
+  size: 211, 216
+  orig: 211, 216
+  offset: 0, 0
+  index: -1
+fx
+  rotate: true
+  xy: 2, 58
+  size: 191, 280
+  orig: 191, 280
+  offset: 0, 0
+  index: -1
+txt
+  rotate: false
+  xy: 2, 5
+  size: 134, 51
+  orig: 134, 51
+  offset: 0, 0
+  index: -1

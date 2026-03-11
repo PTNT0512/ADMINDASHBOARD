@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Volume2, VolumeX, Play, Square, Target, Trophy, Activity, Zap, List, Clock, DollarSign } from 'lucide-react';
+import { bootstrapGameAuth } from './authBootstrap';
+import { refreshWinRates, pickByWinRate } from './winRateControl';
 
 // --- Game Constants ---
 const GRAVITY = 0.45; 
@@ -33,6 +35,12 @@ const generateMultipliers = (count) => {
 
 export default function App() {
   const [balance, setBalance] = useState(10000000);
+  useEffect(() => {
+    bootstrapGameAuth({
+      onBalance: setBalance,
+    }).catch((error) => console.error('Game auth bootstrap failed:', error));
+    refreshWinRates().catch(() => {});
+  }, []);
   const [bet, setBet] = useState(10000);
   const [history, setHistory] = useState([]); // Short horizontal history
   const [betLogs, setBetLogs] = useState([]); // Vertical detailed history (LIMIT TO 10)
@@ -268,7 +276,12 @@ export default function App() {
 
       state.multipliers.forEach((m, mIdx) => {
         if (b.y > m.y && b.y < m.y + m.h && b.x > m.x && b.x < m.x + m.w) {
-          const finalMult = m.value * b.currentMult;
+          const naturalMult = m.value * b.currentMult;
+          const projected = state.multipliers.map((x) => Number((x.value * b.currentMult).toFixed(2)));
+          const winCandidates = projected.filter((x) => x >= 1);
+          const loseCandidates = projected.filter((x) => x < 1);
+          const forced = pickByWinRate('plinko', winCandidates, loseCandidates);
+          const finalMult = Number((forced ?? naturalMult).toFixed(2));
           const totalWin = b.betValue * finalMult;
           
           setBalance(prev => prev + totalWin);

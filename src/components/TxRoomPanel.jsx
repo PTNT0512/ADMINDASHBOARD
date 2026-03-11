@@ -4,6 +4,7 @@ function TxRoomPanel({ title, roomType }) {
   const [settings, setSettings] = useState({
     botToken: '',
     groupId: '',
+    checkCauWebAppUrl: '',
     minBet: 1000,
     maxBet: 10000000,
     botBanker: true,
@@ -17,6 +18,11 @@ function TxRoomPanel({ title, roomType }) {
     status: 1,
     bankerSelectionTime: 30,
     bettingTime: 60,
+    roundOneBettingTime: 30,
+    roundOneResultTime: 15,
+    roundTwoBettingTime: 30,
+    finalResultTime: 10,
+    sessionWaitTime: 1,
     botBankerAmount: 5000000,
   });
   const [stats, setStats] = useState({ 
@@ -25,6 +31,15 @@ function TxRoomPanel({ title, roomType }) {
   });
   const [history, setHistory] = useState([]);
   const [addJackpotAmount, setAddJackpotAmount] = useState('');
+  const isKhongMinhRoom = roomType === 'khongminh';
+
+  const setIntField = (key) => (e) => {
+    const value = Number(e.target.value);
+    setSettings(prev => ({
+      ...prev,
+      [key]: Number.isFinite(value) ? Math.floor(value) : prev[key],
+    }));
+  };
 
   const fetchData = async () => {
     if (window.require) {
@@ -100,6 +115,14 @@ function TxRoomPanel({ title, roomType }) {
               <input value={settings.groupId} onChange={e => setSettings({...settings, groupId: e.target.value})} placeholder="ID Group Telegram" />
             </div>
             <div className="input-group">
+              <label>Link WebApp Check cầu (HTTPS)</label>
+              <input
+                value={settings.checkCauWebAppUrl || ''}
+                onChange={e => setSettings({ ...settings, checkCauWebAppUrl: e.target.value })}
+                placeholder={isKhongMinhRoom ? 'https://domain-cua-ban/check-cau-khongminh' : 'https://domain-cua-ban/check-cau-tx'}
+              />
+            </div>
+            <div className="input-group">
               <label>Cược Tối Thiểu</label>
               <input type="number" value={settings.minBet} onChange={e => setSettings({...settings, minBet: parseInt(e.target.value)})} />
             </div>
@@ -124,12 +147,48 @@ function TxRoomPanel({ title, roomType }) {
             </div>
             <div className="input-group">
               <label>Thời gian chọn cái (giây)</label>
-              <input type="number" value={settings.bankerSelectionTime} onChange={e => setSettings({...settings, bankerSelectionTime: parseInt(e.target.value)})} />
+              <input type="number" value={settings.bankerSelectionTime} onChange={setIntField('bankerSelectionTime')} />
             </div>
-            <div className="input-group">
-              <label>Thời gian đặt cược (giây)</label>
-              <input type="number" value={settings.bettingTime} onChange={e => setSettings({...settings, bettingTime: parseInt(e.target.value)})} />
-            </div>
+            {!isKhongMinhRoom && (
+              <>
+                <div className="input-group">
+                  <label>Thời gian đặt cược (giây)</label>
+                  <input type="number" value={settings.bettingTime} onChange={setIntField('bettingTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian ra kết quả (giây)</label>
+                  <input type="number" value={settings.finalResultTime} onChange={setIntField('finalResultTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian nghỉ giữa phiên (giây)</label>
+                  <input type="number" value={settings.sessionWaitTime} onChange={setIntField('sessionWaitTime')} />
+                </div>
+              </>
+            )}
+            {isKhongMinhRoom && (
+              <>
+                <div className="input-group">
+                  <label>Thời gian vòng 1 (giây)</label>
+                  <input type="number" value={settings.roundOneBettingTime} onChange={setIntField('roundOneBettingTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian chờ vòng 2 (giây)</label>
+                  <input type="number" value={settings.roundOneResultTime} onChange={setIntField('roundOneResultTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian vòng 2 (giây)</label>
+                  <input type="number" value={settings.roundTwoBettingTime} onChange={setIntField('roundTwoBettingTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian ra kết quả (giây)</label>
+                  <input type="number" value={settings.finalResultTime} onChange={setIntField('finalResultTime')} />
+                </div>
+                <div className="input-group">
+                  <label>Thời gian nghỉ giữa phiên (giây)</label>
+                  <input type="number" value={settings.sessionWaitTime} onChange={setIntField('sessionWaitTime')} />
+                </div>
+              </>
+            )}
              <div className="input-group">
               <label>Tiền mặc định khi Bot làm cái</label>
               <input type="number" value={settings.botBankerAmount} onChange={e => setSettings({...settings, botBankerAmount: parseInt(e.target.value)})} />

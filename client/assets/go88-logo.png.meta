@@ -1,0 +1,36 @@
+{
+  "ver": "2.3.5",
+  "uuid": "519445a5-8297-4ac6-9e83-9cbde42d3389",
+  "type": "sprite",
+  "wrapMode": "clamp",
+  "filterMode": "bilinear",
+  "premultiplyAlpha": false,
+  "genMipmaps": false,
+  "packable": true,
+  "width": 420,
+  "height": 187,
+  "platformSettings": {},
+  "subMetas": {
+    "go88-logo": {
+      "ver": "1.0.4",
+      "uuid": "05b86bf5-8524-4194-80a6-e9b5cc750948",
+      "rawTextureUuid": "519445a5-8297-4ac6-9e83-9cbde42d3389",
+      "trimType": "auto",
+      "trimThreshold": 1,
+      "rotated": false,
+      "offsetX": 0,
+      "offsetY": 0,
+      "trimX": 0,
+      "trimY": 0,
+      "width": 420,
+      "height": 187,
+      "rawWidth": 420,
+      "rawHeight": 187,
+      "borderTop": 0,
+      "borderBottom": 0,
+      "borderLeft": 0,
+      "borderRight": 0,
+      "subMetas": {}
+    }
+  }
+}

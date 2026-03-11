@@ -1,0 +1,27 @@
+
+ef_xiu.png
+size: 430,230
+format: RGBA8888
+filter: Linear,Linear
+repeat: none
+bg
+  rotate: false
+  xy: 2, 22
+  size: 281, 206
+  orig: 283, 208
+  offset: 1, 1
+  index: -1
+bg2
+  rotate: true
+  xy: 285, 92
+  size: 136, 143
+  orig: 138, 145
+  offset: 1, 1
+  index: -1
+xiu
+  rotate: false
+  xy: 285, 2
+  size: 132, 88
+  orig: 134, 90
+  offset: 1, 1
+  index: -1
